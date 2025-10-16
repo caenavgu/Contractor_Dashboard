@@ -1,0 +1,8 @@
+/* public/assets/css/main.css */
+:root {
+  --brand-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --brand-max-width: 1000px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--brand-font)}
+.container{max-width:var(--brand-max-width);margin:0 auto;padding:1rem}

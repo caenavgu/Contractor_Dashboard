@@ -1,0 +1,1 @@
+Place cron-invoked scripts here (EasyCron endpoints).

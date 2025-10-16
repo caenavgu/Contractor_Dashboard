@@ -1,0 +1,22 @@
+AddDefaultCharset utf-8
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Maintenance mode: if maintenance.flag exists, show maintenance.html
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  RewriteCond %{DOCUMENT_ROOT}/maintenance.flag -f
+  RewriteRule ^ maintenance.html [R=302,L]
+
+  # Front controller (optional, can be adapted later)
+  RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# Basic security
+<FilesMatch "\.(env|ini|log|sql|sh)$">
+  Require all denied
+</FilesMatch>

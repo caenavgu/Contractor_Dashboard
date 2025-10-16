@@ -1,0 +1,32 @@
+# OS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Dependencies / caches
+vendor/
+node_modules/
+*.cache
+*.log
+
+# Secrets / environment
+.env
+.env.*
+config/*.ini
+config/*.local.php
+config/*.secrets.json
+
+# Storage (do not version user/generated files)
+storage/*
+!storage/.gitkeep
+!storage/logs/.gitkeep
+!storage/temp/.gitkeep
+!storage/uploads/.gitkeep
+!storage/certificates/.gitkeep
+!storage/file-transfer/.gitkeep
+
+# Build artifacts
+dist/
+build/
