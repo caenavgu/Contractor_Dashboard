@@ -1,0 +1,77 @@
+/* public/assets/css/auth.css */
+/* -------------------------------------------------------------
+   Estilos de la pantalla de autenticación
+   - Clases en kebab-case
+   - Paleta simple con botón rojo marca
+   ------------------------------------------------------------- */
+
+:root{
+  --brand-red: #ed1c24;
+  --brand-red-hover: #212529;
+  --bg-gray: #f3f5f7;
+  --card-radius: 12px;
+}
+
+/* CENTRADO global */
+.auth-page{
+  background: var(--bg-gray);
+  min-height: 100vh;
+  margin: 0;
+}
+
+/* Centrar el contenido del main (que tiene la clase Bootstrap .container) */
+.auth-page .container{
+  min-height: 100vh;            /* ocupa toda la altura de la ventana */
+  display: grid;                /* grid para centrar */
+  place-items: center;          /* centra vertical y horizontal */
+  padding-top: 0;               /* quitamos padding extra */
+  padding-bottom: 0;
+}
+
+.auth-card{
+  width: 100%;
+  max-width: 420px;
+  border-radius: var(--card-radius);
+}
+
+.brand-logo{
+  display: inline-block;
+  width: 250px;
+  height: auto;
+  user-select: none;
+}
+
+.btn-brand{
+  background: var(--brand-red);
+  color: #fff;
+  border: 1px solid var(--brand-red);
+  border-radius: 8px;
+  font-weight: 600;
+}
+.btn-brand:hover,
+.btn-brand:focus{
+  background: var(--brand-red-hover);
+  border-color: var(--brand-red-hover);
+  color: #fff;
+}
+
+.link-brand{
+  color: var(--brand-red);
+  text-decoration: none;
+}
+.link-brand:hover{
+  text-decoration: underline;
+}
+
+/* Ajustes menores de inputs */
+.input-group .btn{
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.form-label{
+  font-size: .875rem;
+}
+.form-control::placeholder{
+  color: #a6a6a6;
+}

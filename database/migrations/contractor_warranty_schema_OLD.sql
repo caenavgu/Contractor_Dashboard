@@ -1,25 +1,23 @@
 -- =====================================================================
--- Fresh schema: multi-user per contractor + TEC role + EPA fields + warranties by user
--- + Seed: first ADMIN user (Carlos Avila)
--- Target DB: rhyjjbm0_wpew_cntrctr_01 (MySQL 5.7)
--- Author: ChatGPT
+-- Database & defaults
 -- =====================================================================
-
 CREATE DATABASE IF NOT EXISTS rhyjjbm0_wpew_cntrctr_01
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 USE rhyjjbm0_wpew_cntrctr_01;
 
+-- For timestamp consistency
 SET time_zone = '+00:00';
 
 -- =====================================================================
 -- Utility tables
 -- =====================================================================
 
+-- 1) User Types (roles)
 DROP TABLE IF EXISTS user_types;
 CREATE TABLE user_types (
-  user_type_id CHAR(3) PRIMARY KEY,         -- ADM | SOP | CON | TEC
-  user_type_name VARCHAR(50) NOT NULL,      -- ADMINISTRATOR | CUSTOMER SUPPORT | CONTRACTOR | TECHNICIAN
+  user_type_id CHAR(3) PRIMARY KEY,         -- ADM | SOP | CON
+  user_type_name VARCHAR(50) NOT NULL,      -- ADMINISTRATOR | CUSTOMER SUPPORT | CONTRACTOR
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -27,14 +25,13 @@ CREATE TABLE user_types (
 INSERT INTO user_types (user_type_id, user_type_name) VALUES
   ('ADM','ADMINISTRATOR'),
   ('SOP','CUSTOMER SUPPORT'),
-  ('CON','CONTRACTOR'),
-  ('TEC','TECHNICIAN');
+  ('CON','CONTRACTOR');
 
--- sequences for pretty alphanumeric user_id by role prefix
+-- 2) Sequences for alphanumeric user_id with prefix per role
 DROP TABLE IF EXISTS user_id_sequence;
 CREATE TABLE user_id_sequence (
-  user_type_id CHAR(3) PRIMARY KEY,         -- ADM | SOP | CON | TEC
-  prefix CHAR(1) NOT NULL,                  -- A | S | C | T
+  user_type_id CHAR(3) PRIMARY KEY,         -- ADM | SOP | CON
+  prefix CHAR(1) NOT NULL,                  -- A | S | C
   last_number BIGINT UNSIGNED NOT NULL DEFAULT 0,
   CONSTRAINT fk_seq_user_type FOREIGN KEY (user_type_id) REFERENCES user_types(user_type_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -42,10 +39,9 @@ CREATE TABLE user_id_sequence (
 INSERT INTO user_id_sequence (user_type_id, prefix, last_number) VALUES
   ('ADM','A',0),
   ('SOP','S',0),
-  ('CON','C',0),
-  ('TEC','T',0);
+  ('CON','C',0);
 
--- US states
+-- 3) USA States (names in Spanish as requested, stored uppercase)
 DROP TABLE IF EXISTS usa_states;
 CREATE TABLE usa_states (
   state_code CHAR(2) PRIMARY KEY,
@@ -66,19 +62,18 @@ INSERT INTO usa_states (state_code, state_name) VALUES
 ('WV','VIRGINIA OCCIDENTAL'),('WI','WISCONSIN'),('WY','WYOMING');
 
 -- =====================================================================
--- Core: Users, Details, Sessions, Contractors (1:N users per contractor)
+-- Core: Users, Details, Sessions, Contractors
 -- =====================================================================
 
 DROP TABLE IF EXISTS users;
 CREATE TABLE users (
-  user_id VARCHAR(16) PRIMARY KEY,                     -- generated: A000000001 / S000000001 / C000000001 / T000000001
+  user_id VARCHAR(16) PRIMARY KEY,                     -- generated: A000000001 / S000000001 / C000000001
   email VARCHAR(320) NOT NULL,
   username VARCHAR(191) NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,                 -- store hash only
-  user_type CHAR(3) NOT NULL,                          -- ADM | SOP | CON | TEC
-  contractor_id BIGINT UNSIGNED NULL,                  -- FK to contractors (NULL for ADM/SOP/TEC, or TEC before activation)
-  is_active TINYINT(1) NOT NULL DEFAULT 0,
-  approved_by VARCHAR(16) NULL,                        -- FK to users.user_id
+  password_hash VARCHAR(255) NOT NULL,                 -- hash (bcrypt/argon)
+  user_type CHAR(3) NOT NULL,                          -- FK → user_types
+  is_active TINYINT(1) NOT NULL DEFAULT 0,             -- TRUE/FALSE
+  approved_by VARCHAR(16) NULL,                        -- FK → users.user_id (who approved, if applies)
   email_verified_at DATETIME NULL,
   reset_password_token CHAR(64) NULL,
   reset_password_expires_at DATETIME NULL,
@@ -87,7 +82,6 @@ CREATE TABLE users (
   UNIQUE KEY uq_users_email (email),
   UNIQUE KEY uq_users_username (username),
   KEY idx_users_type (user_type),
-  KEY idx_users_contractor (contractor_id),
   CONSTRAINT fk_users_type FOREIGN KEY (user_type) REFERENCES user_types(user_type_id),
   CONSTRAINT fk_users_approved_by FOREIGN KEY (approved_by) REFERENCES users(user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -98,9 +92,6 @@ CREATE TABLE user_details (
   first_name VARCHAR(100) NOT NULL,
   last_name  VARCHAR(100) NOT NULL,
   phone_number VARCHAR(30) NULL,
-  epa_certification_number VARCHAR(100) NULL,          -- EPA number (required for TEC and CON via trigger)
-  certifying_organization VARCHAR(150) NULL,
-  epa_photo_url VARCHAR(255) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_ud_user FOREIGN KEY (user_id) REFERENCES users(user_id)
@@ -120,14 +111,10 @@ CREATE TABLE sessions (
   CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES users(user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Contractors have their own numeric PK and can relate to many users
 DROP TABLE IF EXISTS contractors;
 CREATE TABLE contractors (
-  contractor_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  contractor_id VARCHAR(16) PRIMARY KEY,               -- PK = FK → users.user_id (1:1)
   company_name VARCHAR(191) NOT NULL,
-  company_phone VARCHAR(30) NULL,
-  company_email VARCHAR(320) NULL,
-  company_website VARCHAR(191) NULL,
   cac_license_number VARCHAR(100) NOT NULL,
   address VARCHAR(191) NOT NULL,
   address_2 VARCHAR(191) NULL,
@@ -142,13 +129,9 @@ CREATE TABLE contractors (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_contractor_license (cac_license_number),
   KEY idx_contractor_active (is_active),
+  CONSTRAINT fk_contractor_user FOREIGN KEY (contractor_id) REFERENCES users(user_id),
   CONSTRAINT fk_contractor_state FOREIGN KEY (state_code) REFERENCES usa_states(state_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Add the FK from users to contractors
-ALTER TABLE users
-  ADD CONSTRAINT fk_users_contractor
-  FOREIGN KEY (contractor_id) REFERENCES contractors(contractor_id);
 
 -- =====================================================================
 -- Products & Models
@@ -167,7 +150,7 @@ DROP TABLE IF EXISTS models;
 CREATE TABLE models (
   model_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   product_type_id SMALLINT UNSIGNED NOT NULL,
-  model_number VARCHAR(100) NOT NULL,
+  model_number VARCHAR(100) NOT NULL,         -- previously "serie"
   brand VARCHAR(100) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -176,16 +159,16 @@ CREATE TABLE models (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================================
--- Serial Pool
+-- Serial Pool (serial validation)
 -- =====================================================================
 
 DROP TABLE IF EXISTS serial_number_validation;
 CREATE TABLE serial_number_validation (
-  item_model BIGINT UNSIGNED NOT NULL,
+  item_model BIGINT UNSIGNED NOT NULL,                 -- FK → models.model_id
   item_serial_number VARCHAR(100) NOT NULL,
-  manufacturing_date DATE NULL,
+  manufacturing_date DATE NULL,                        -- corrected name
   source ENUM('AUTOMATIC UPLOAD','MANUAL UPLOAD') NOT NULL DEFAULT 'AUTOMATIC UPLOAD',
-  who_added VARCHAR(16) NULL,
+  who_added VARCHAR(16) NULL,                          -- FK → users.user_id
   sn_proof_url VARCHAR(255) NULL,
   status ENUM('ACTIVATE','DESACTIVATE') NOT NULL DEFAULT 'ACTIVATE',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -197,33 +180,37 @@ CREATE TABLE serial_number_validation (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================================
--- Warranties (by user)
+-- Warranties
 -- =====================================================================
 
 DROP TABLE IF EXISTS warranty_records;
 CREATE TABLE warranty_records (
   warranty_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
 
+  -- Owner (end customer)
   owner_first_name VARCHAR(100) NOT NULL,
   owner_last_name  VARCHAR(100) NOT NULL,
   owner_email VARCHAR(320) NULL,
   owner_phone_number VARCHAR(30) NULL,
 
+  -- Billing address
   billing_address  VARCHAR(191) NOT NULL,
   billing_address_2 VARCHAR(191) NULL,
   billing_city     VARCHAR(100) NOT NULL,
   billing_state_code CHAR(2) NOT NULL,
   billing_zip_code VARCHAR(20) NOT NULL,
 
+  -- Installation address
   installation_address  VARCHAR(191) NOT NULL,
   installation_address_2 VARCHAR(191) NULL,
   installation_city     VARCHAR(100) NOT NULL,
   installation_state_code CHAR(2) NOT NULL,
   installation_zip_code VARCHAR(20) NOT NULL,
 
-  outdoor_model_id BIGINT UNSIGNED NULL,
+  -- Equipment (fixed 2-piece design)
+  outdoor_model_id BIGINT UNSIGNED NULL,              -- FK → models
   outdoor_serial_number VARCHAR(100) NULL,
-  indoor_model_id BIGINT UNSIGNED NULL,
+  indoor_model_id BIGINT UNSIGNED NULL,               -- FK → models
   indoor_serial_number VARCHAR(100) NULL,
 
   purchased_date DATE NOT NULL,
@@ -234,34 +221,39 @@ CREATE TABLE warranty_records (
 
   status ENUM('ACTIVATE','VOID','EXPIRED') NOT NULL DEFAULT 'ACTIVATE',
 
-  user_id VARCHAR(16) NOT NULL,
+  contractor_id VARCHAR(16) NOT NULL,                 -- FK → contractors
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-  KEY idx_warranty_user_created (user_id, created_at),
+  -- Practical indexes & constraints
+  KEY idx_warranty_contractor_created (contractor_id, created_at),
   KEY idx_warranty_owner_last_name (owner_last_name),
   KEY idx_warranty_purchased_date (purchased_date),
   KEY idx_warranty_outdoor_model (outdoor_model_id),
   KEY idx_warranty_indoor_model (indoor_model_id),
 
+  -- Avoid duplicates per contractor (note: UNIQUE ignores NULL; complement in app if many NULLs)
+  UNIQUE KEY uq_outdoor_combo (contractor_id, outdoor_model_id, outdoor_serial_number),
+  UNIQUE KEY uq_indoor_combo  (contractor_id, indoor_model_id, indoor_serial_number),
+
   CONSTRAINT fk_warranty_b_state FOREIGN KEY (billing_state_code) REFERENCES usa_states(state_code),
   CONSTRAINT fk_warranty_i_state FOREIGN KEY (installation_state_code) REFERENCES usa_states(state_code),
   CONSTRAINT fk_warranty_outdoor_model FOREIGN KEY (outdoor_model_id) REFERENCES models(model_id),
   CONSTRAINT fk_warranty_indoor_model  FOREIGN KEY (indoor_model_id)  REFERENCES models(model_id),
-  CONSTRAINT fk_warranty_user FOREIGN KEY (user_id) REFERENCES users(user_id)
+  CONSTRAINT fk_warranty_contractor FOREIGN KEY (contractor_id) REFERENCES contractors(contractor_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================================
--- Audit logs
+-- Audit Logs (plural)
 -- =====================================================================
 
 DROP TABLE IF EXISTS audit_logs;
 CREATE TABLE audit_logs (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  actor_user_id VARCHAR(16) NULL,
-  entity_type VARCHAR(50) NOT NULL,
-  entity_id BIGINT UNSIGNED NULL,
-  action VARCHAR(50) NOT NULL,
+  actor_user_id VARCHAR(16) NULL,                      -- FK → users
+  entity_type VARCHAR(50) NOT NULL,                    -- 'user' | 'contractor' | 'warranty' | 'serial' | ...
+  entity_id BIGINT UNSIGNED NULL,                      -- or VARCHAR if pointing to users
+  action VARCHAR(50) NOT NULL,                         -- 'approve' | 'upload_proof' | 'generate_certificate' | ...
   data_json JSON NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_audit_entity (entity_type, entity_id, created_at),
@@ -271,8 +263,10 @@ CREATE TABLE audit_logs (
 -- =====================================================================
 -- Triggers
 -- =====================================================================
+
 DELIMITER $$
 
+-- Generate users.user_id with prefix per user_type
 DROP TRIGGER IF EXISTS trg_users_before_insert $$
 CREATE TRIGGER trg_users_before_insert
 BEFORE INSERT ON users
@@ -280,86 +274,45 @@ FOR EACH ROW
 BEGIN
   DECLARE v_prefix CHAR(1);
   DECLARE v_next BIGINT UNSIGNED;
-  SELECT prefix INTO v_prefix FROM user_id_sequence WHERE user_type_id = NEW.user_type FOR UPDATE;
-  IF v_prefix IS NULL THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid user_type for user_id generation'; END IF;
-  UPDATE user_id_sequence SET last_number = last_number + 1 WHERE user_type_id = NEW.user_type;
-  SELECT last_number INTO v_next FROM user_id_sequence WHERE user_type_id = NEW.user_type;
+
+  -- Prefix by type
+  SELECT prefix INTO v_prefix
+  FROM user_id_sequence
+  WHERE user_type_id = NEW.user_type
+  FOR UPDATE;
+
+  IF v_prefix IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid user_type for user_id generation';
+  END IF;
+
+  -- Increment sequence atomically
+  UPDATE user_id_sequence
+    SET last_number = last_number + 1
+  WHERE user_type_id = NEW.user_type;
+
+  SELECT last_number INTO v_next
+  FROM user_id_sequence
+  WHERE user_type_id = NEW.user_type;
+
+  -- Build ID: Letter + 9 digits left-padded with zeros
   SET NEW.user_id = CONCAT(v_prefix, LPAD(v_next, 9, '0'));
-  -- Do NOT change casing for password/email/username. Validate only hash size.
-  IF CHAR_LENGTH(NEW.password_hash) < 60 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'password_hash too short (must be a secure hash)'; END IF;
-END $$
 
-DROP TRIGGER IF EXISTS trg_users_assign_type_bi $$
-CREATE TRIGGER trg_users_assign_type_bi
-BEFORE INSERT ON users
-FOR EACH ROW
-BEGIN
-  DECLARE v_is_active TINYINT(1);
-  IF NEW.user_type IS NULL OR NEW.user_type IN ('CON','TEC') THEN
-    IF NEW.contractor_id IS NOT NULL THEN
-      SELECT is_active INTO v_is_active FROM contractors WHERE contractor_id = NEW.contractor_id;
-      IF v_is_active = 1 THEN SET NEW.user_type = 'CON'; ELSE SET NEW.user_type = 'TEC'; END IF;
-    ELSE
-      SET NEW.user_type = 'TEC';
-    END IF;
+  -- Minimal hash validation (bcrypt usually >= 60 chars)
+  IF CHAR_LENGTH(NEW.password_hash) < 60 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'password_hash too short (must be a secure hash)';
   END IF;
+
+  -- Do NOT uppercase username or email
 END $$
 
-DROP TRIGGER IF EXISTS trg_users_assign_type_bu $$
-CREATE TRIGGER trg_users_assign_type_bu
-BEFORE UPDATE ON users
-FOR EACH ROW
-BEGIN
-  DECLARE v_is_active TINYINT(1);
-  IF NEW.user_type IS NULL OR NEW.user_type IN ('CON','TEC') THEN
-    IF NEW.contractor_id IS NOT NULL THEN
-      SELECT is_active INTO v_is_active FROM contractors WHERE contractor_id = NEW.contractor_id;
-      IF v_is_active = 1 THEN SET NEW.user_type = 'CON'; ELSE SET NEW.user_type = 'TEC'; END IF;
-    ELSE
-      SET NEW.user_type = 'TEC';
-    END IF;
-  END IF;
-END $$
+-- No uppercase on update for username/email either (so no BEFORE UPDATE trigger on users)
 
--- Uppercase names in user_details and enforce EPA for TEC and CON
-DROP TRIGGER IF EXISTS trg_user_details_bi $$
-CREATE TRIGGER trg_user_details_bi
-BEFORE INSERT ON user_details
-FOR EACH ROW
-BEGIN
-  DECLARE v_type CHAR(3);
-  SELECT user_type INTO v_type FROM users WHERE user_id = NEW.user_id;
-  SET NEW.first_name = UPPER(NEW.first_name);
-  SET NEW.last_name  = UPPER(NEW.last_name);
-  IF v_type IN ('TEC','CON') THEN
-    IF NEW.epa_certification_number IS NULL OR CHAR_LENGTH(TRIM(NEW.epa_certification_number)) = 0 THEN
-      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'EPA certification number is required for TEC/CON users';
-    END IF;
-  END IF;
-END $$
-
-DROP TRIGGER IF EXISTS trg_user_details_bu $$
-CREATE TRIGGER trg_user_details_bu
-BEFORE UPDATE ON user_details
-FOR EACH ROW
-BEGIN
-  DECLARE v_type CHAR(3);
-  SELECT user_type INTO v_type FROM users WHERE user_id = NEW.user_id;
-  SET NEW.first_name = UPPER(NEW.first_name);
-  SET NEW.last_name  = UPPER(NEW.last_name);
-  IF v_type IN ('TEC','CON') THEN
-    IF NEW.epa_certification_number IS NULL OR CHAR_LENGTH(TRIM(NEW.epa_certification_number)) = 0 THEN
-      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'EPA certification number is required for TEC/CON users';
-    END IF;
-  END IF;
-END $$
-
+-- Uppercase for contractors (business fields only; not tokens/dates)
 DROP TRIGGER IF EXISTS trg_contractors_bi $$
 CREATE TRIGGER trg_contractors_bi
 BEFORE INSERT ON contractors
 FOR EACH ROW
 BEGIN
-  -- Uppercase only business address-like fields (NOT emails/urls/phones/passwords)
   SET NEW.company_name = UPPER(NEW.company_name);
   SET NEW.cac_license_number = UPPER(NEW.cac_license_number);
   SET NEW.address = UPPER(NEW.address);
@@ -383,6 +336,26 @@ BEGIN
   SET NEW.zip_code = UPPER(NEW.zip_code);
 END $$
 
+-- Uppercase for user_details (names)
+DROP TRIGGER IF EXISTS trg_user_details_bi $$
+CREATE TRIGGER trg_user_details_bi
+BEFORE INSERT ON user_details
+FOR EACH ROW
+BEGIN
+  SET NEW.first_name = UPPER(NEW.first_name);
+  SET NEW.last_name  = UPPER(NEW.last_name);
+END $$
+
+DROP TRIGGER IF EXISTS trg_user_details_bu $$
+CREATE TRIGGER trg_user_details_bu
+BEFORE UPDATE ON user_details
+FOR EACH ROW
+BEGIN
+  SET NEW.first_name = UPPER(NEW.first_name);
+  SET NEW.last_name  = UPPER(NEW.last_name);
+END $$
+
+-- Uppercase for warranty_records (except emails and URLs)
 DROP TRIGGER IF EXISTS trg_warranty_bi $$
 CREATE TRIGGER trg_warranty_bi
 BEFORE INSERT ON warranty_records
@@ -390,16 +363,19 @@ FOR EACH ROW
 BEGIN
   SET NEW.owner_first_name = UPPER(NEW.owner_first_name);
   SET NEW.owner_last_name  = UPPER(NEW.owner_last_name);
+  -- owner_email stays as-is
   SET NEW.billing_address  = UPPER(NEW.billing_address);
   SET NEW.billing_address_2= UPPER(NEW.billing_address_2);
   SET NEW.billing_city     = UPPER(NEW.billing_city);
   SET NEW.billing_state_code = UPPER(NEW.billing_state_code);
   SET NEW.billing_zip_code = UPPER(NEW.billing_zip_code);
+
   SET NEW.installation_address  = UPPER(NEW.installation_address);
   SET NEW.installation_address_2= UPPER(NEW.installation_address_2);
   SET NEW.installation_city     = UPPER(NEW.installation_city);
   SET NEW.installation_state_code = UPPER(NEW.installation_state_code);
   SET NEW.installation_zip_code = UPPER(NEW.installation_zip_code);
+
   SET NEW.invoice_number = UPPER(NEW.invoice_number);
   SET NEW.status = UPPER(NEW.status);
 END $$
@@ -416,11 +392,13 @@ BEGIN
   SET NEW.billing_city     = UPPER(NEW.billing_city);
   SET NEW.billing_state_code = UPPER(NEW.billing_state_code);
   SET NEW.billing_zip_code = UPPER(NEW.billing_zip_code);
+
   SET NEW.installation_address  = UPPER(NEW.installation_address);
   SET NEW.installation_address_2= UPPER(NEW.installation_address_2);
   SET NEW.installation_city     = UPPER(NEW.installation_city);
   SET NEW.installation_state_code = UPPER(NEW.installation_state_code);
   SET NEW.installation_zip_code = UPPER(NEW.installation_zip_code);
+
   SET NEW.invoice_number = UPPER(NEW.invoice_number);
   SET NEW.status = UPPER(NEW.status);
 END $$
@@ -428,10 +406,10 @@ END $$
 DELIMITER ;
 
 -- =====================================================================
--- Seed: first ADMIN user (Carlos Avila)
+-- Seeds: first ADMIN user (Carlos Avila)
 -- =====================================================================
 
--- Bcrypt hash for "Password123!!" (min length 8 met in app; DB stores hash only)
+-- Bcrypt hash for "Password123!!"
 -- $2b$12$xBh5XUc2lxm158gDgeb9Ue6AwLXiHtUEwF.56/WFK3xC/P4QvaGX.
 SET @admin_email := 'carlos.avila@everwellparts.com';
 SET @admin_username := 'carlos.avila@everwellparts.com';
@@ -442,16 +420,14 @@ VALUES (@admin_email, @admin_username, @admin_hash, 'ADM', 1, NULL, NOW());
 
 SET @admin_user_id := (SELECT user_id FROM users WHERE email=@admin_email);
 
-INSERT INTO user_details (user_id, first_name, last_name, phone_number, epa_certification_number)
-VALUES (@admin_user_id, 'CARLOS', 'AVILA', '7863283345', NULL);
+INSERT INTO user_details (user_id, first_name, last_name, phone_number)
+VALUES (@admin_user_id, 'CARLOS', 'AVILA', '7863283345');
 
+-- Approve self as first admin (optional)
 UPDATE users
 SET approved_by = @admin_user_id
 WHERE user_id = @admin_user_id;
 
+-- Audit log record
 INSERT INTO audit_logs (actor_user_id, entity_type, entity_id, action, data_json, created_at)
 VALUES (@admin_user_id, 'user', 0, 'create_admin', JSON_OBJECT('email', @admin_email), NOW());
-
--- =====================================================================
--- END
--- =====================================================================

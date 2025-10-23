@@ -1,0 +1,66 @@
+/* public/assets/css/app.css */
+/* -------------------------------------------------------------
+   Estilos generales del dashboard y páginas internas
+   - Clases en kebab-case (como pediste)
+   ------------------------------------------------------------- */
+
+:root{
+  --brand-red: #e53935;
+  --brand-red-hover: #c62828;
+  --bg-gray: #f3f5f7;
+  --card-radius: 12px;
+  --border-red: #e57373;
+}
+
+.app-page{
+  background: var(--bg-gray);
+  min-height: 100vh;
+  margin: 0;
+}
+
+/* Centrado del panel principal */
+.app-page .container{
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+}
+
+/* Panel de opciones */
+.dashboard-panel{
+  width: 100%;
+  max-width: 720px;
+  display: grid;
+  gap: 12px;
+}
+
+/* Cada item tipo "botón" */
+.dash-item{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  padding: 14px 16px;
+  background: #fff;
+  border: 2px solid var(--border-red);
+  border-radius: 8px;
+  color: var(--brand-red);
+  text-decoration: none;
+  font-weight: 600;
+  transition: background .15s ease, color .15s ease, border-color .15s ease, transform .05s ease;
+}
+.dash-item:hover,
+.dash-item:focus{
+  background: var(--brand-red);
+  color: #fff;
+  border-color: var(--brand-red);
+}
+.dash-item:active{
+  transform: translateY(1px);
+}
+
+/* Responsive: estrecho */
+@media (max-width: 480px){
+  .dashboard-panel{
+    max-width: 360px;
+  }
+}
