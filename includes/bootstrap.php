@@ -10,6 +10,7 @@ require __DIR__ . '/error_handler.php';
 
 // 2) Helpers (necesarios para read_config_ini)
 require __DIR__ . '/helpers.php';
+require __DIR__ . '/mailer.php';
 
 // 3) Cargar configuración (PRIORIDAD: LOCAL -> PRODUCTION -> EXAMPLE)
 $config_files = [
@@ -53,8 +54,14 @@ require __DIR__ . '/db.php';
 $pdo = get_pdo($app_config);
 
 // 10) Cargar capas (Repos/Services/Presenters)
-require __DIR__ . '/../app/Repositories/user_repository.php';
-require __DIR__ . '/../app/Repositories/session_repository.php';
-require __DIR__ . '/../app/Repositories/audit_log_repository.php';
-require __DIR__ . '/../app/Services/auth_service.php';
-require __DIR__ . '/../app/Presenters/sign_in_presenter.php';
+require_once __DIR__ . '/../app/Repositories/user_repository.php';
+require_once __DIR__ . '/../app/Repositories/session_repository.php';
+require_once __DIR__ . '/../app/Repositories/audit_log_repository.php';
+require_once __DIR__ . '/../app/Repositories/contractor_repository.php';
+require_once __DIR__ . '/../app/Repositories/contractor_staging_repository.php';
+
+require_once __DIR__ . '/../app/Services/auth_service.php';
+require_once __DIR__ . '/../app/Services/sign_up_service.php';
+
+require_once __DIR__ . '/../app/Presenters/sign_in_presenter.php';
+require_once __DIR__ . '/../app/Presenters/sign_up_presenter.php';
