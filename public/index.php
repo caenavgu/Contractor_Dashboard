@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/../includes/bootstrap.php';
+require __DIR__ . '/../includes/middleware.php';
 
 // Crea instancias necesarias
 $user_repo    = new UserRepository($pdo);
@@ -16,6 +17,12 @@ $sign_up_presenter = new SignUpPresenter($sign_up_service);
 $session_repo = new SessionRepository($pdo);
 $auth_srv     = new AuthService($user_repo, $session_repo, $audit_repo);
 $signin       = new SignInPresenter($auth_srv);
+
+// Aprobaciones
+require_once __DIR__ . '/../app/Services/approval_service.php';
+require_once __DIR__ . '/../app/Presenters/approvals_presenter.php';
+$approval_service   = new ApprovalService($pdo, $user_repo, $contractor_repo, $staging_repo, $audit_repo);
+$approvals_presenter= new ApprovalsPresenter($pdo, $approval_service, $staging_repo);
 
 $uri_path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
 
@@ -65,34 +72,47 @@ if ($uri_path === route_url('/verify-email') || $uri_path === '/verify-email') {
     exit;
 }
 
-/* APPROVALS (admin minimal) */
+/* APPROVALS (GET/POST) */
 if ($uri_path === route_url('/approvals') || $uri_path === '/approvals') {
-    // NOTE: aquí deberías validar que el actor es admin; por ahora es acceso abierto en MVP
-    // Cargamos pending stagings y users waiting (email_verified_at != NULL and is_active=0)
-    $pending_stagings = $staging_repo->find_pending();
-    $sql = "SELECT user_id, email, first_name, last_name, email_verified_at, is_active FROM users WHERE email_verified_at IS NOT NULL AND is_active = 0 ORDER BY created_at DESC";
-    $st = $pdo->query($sql);
-    $pending_users = $st->fetchAll();
-
-    require __DIR__ . '/views/approvals.php';
-    exit;
-}
-
-/* APPROVAL ACTIONS: approve user (POST) */
-if ($uri_path === route_url('/approvals/user/approve') && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $user_id = (int)($_POST['user_id'] ?? 0);
-    $admin_id = 1; // TODO: obtener admin id real desde sesión
-    $user_repo->activate_user($user_id, $admin_id);
-    $audit_repo->add($admin_id, 'user', $user_id, 'user_approved', ['by'=>$admin_id]);
-    // enviar correo
-    $user = $pdo->prepare("SELECT email, first_name FROM users WHERE user_id = :id");
-    $user->execute([':id'=>$user_id]); $u = $user->fetch();
-    if ($u) {
-        send_mail($u['email'], 'Your account has been approved', "<p>Dear " . htmlspecialchars($u['first_name'] ?? '') . ",</p><p>Your account has been approved.</p>");
+    require_admin_or_403(); // proteger
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $approvals_presenter->handle_post();
+        exit; // handle_post hace redirect
+    } else {
+        $view = $approvals_presenter->handle_get();
+        require __DIR__ . '/views/approvals.php';
+        exit;
     }
-    header('Location: ' . route_url('/approvals'));
-    exit;
 }
+
+// /* APPROVALS (admin minimal) */
+// if ($uri_path === route_url('/approvals') || $uri_path === '/approvals') {
+//     // NOTE: aquí deberías validar que el actor es admin; por ahora es acceso abierto en MVP
+//     // Cargamos pending stagings y users waiting (email_verified_at != NULL and is_active=0)
+//     $pending_stagings = $staging_repo->find_pending();
+//     $sql = "SELECT user_id, email, first_name, last_name, email_verified_at, is_active FROM users WHERE email_verified_at IS NOT NULL AND is_active = 0 ORDER BY created_at DESC";
+//     $st = $pdo->query($sql);
+//     $pending_users = $st->fetchAll();
+
+//     require __DIR__ . '/views/approvals.php';
+//     exit;
+// }
+
+// /* APPROVAL ACTIONS: approve user (POST) */
+// if ($uri_path === route_url('/approvals/user/approve') && $_SERVER['REQUEST_METHOD'] === 'POST') {
+//     $user_id = (int)($_POST['user_id'] ?? 0);
+//     $admin_id = 1; // TODO: obtener admin id real desde sesión
+//     $user_repo->activate_user($user_id, $admin_id);
+//     $audit_repo->add($admin_id, 'user', $user_id, 'user_approved', ['by'=>$admin_id]);
+//     // enviar correo
+//     $user = $pdo->prepare("SELECT email, first_name FROM users WHERE user_id = :id");
+//     $user->execute([':id'=>$user_id]); $u = $user->fetch();
+//     if ($u) {
+//         send_mail($u['email'], 'Your account has been approved', "<p>Dear " . htmlspecialchars($u['first_name'] ?? '') . ",</p><p>Your account has been approved.</p>");
+//     }
+//     header('Location: ' . route_url('/approvals'));
+//     exit;
+// }
 
 /* STAGING MERGE / DISCARD minimal endpoints */
 if ($uri_path === route_url('/approvals/staging/merge') && $_SERVER['REQUEST_METHOD'] === 'POST') {

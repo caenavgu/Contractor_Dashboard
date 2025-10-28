@@ -9,30 +9,22 @@ class AuditLogRepository
 {
     public function __construct(private PDO $pdo) {}
 
-    public function add(?string $actor_user_id, string $entity_type, ?int $entity_id, string $action, array $data): void
-    {
-        // Normalizar y acotar datos para evitar errores de codificación/tamaño
-        $safe = $this->sanitize_data($data);
+public function add(?string $actor_user_id, string $entity_type, ?string $entity_id, string $action, array $data): void
+{
+    $safe = $this->sanitize_data($data);
+    $json = json_encode($safe, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}';
 
-        // Intentar JSON; si falla, usar "{}"
-        $json = json_encode($safe, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        if ($json === false) {
-            $json = '{}';
-        }
-
-        // INSERT sin CAST; MySQL castea string->JSON (si la columna es JSON)
-        $sql = "INSERT INTO audit_logs (actor_user_id, entity_type, entity_id, action, data_json, created_at)
-                VALUES (:actor, :etype, :eid, :action, :json, NOW())";
-
-        $st = $this->pdo->prepare($sql);
-        $st->execute([
-            ':actor'  => $actor_user_id,
-            ':etype'  => substr($entity_type, 0, 50),
-            ':eid'    => $entity_id ?? 0,
-            ':action' => substr($action, 0, 50),
-            ':json'   => $json,
-        ]);
-    }
+    $sql = "INSERT INTO audit_logs (actor_user_id, entity_type, entity_id, action, data_json, created_at)
+            VALUES (:actor, :etype, :eid, :action, :json, NOW())";
+    $st = $this->pdo->prepare($sql);
+    $st->execute([
+        ':actor'  => $actor_user_id,
+        ':etype'  => substr($entity_type, 0, 50),
+        ':eid'    => $entity_id,
+        ':action' => substr($action, 0, 50),
+        ':json'   => $json,
+    ]);
+}
 
     private function sanitize_data(array $data): array
     {

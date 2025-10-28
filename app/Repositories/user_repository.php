@@ -33,61 +33,67 @@ class UserRepository
      *      epa_certification_number, certifying_organization,
      *      epa_photo_filename, epa_photo_mime, epa_photo_size, epa_photo_checksum
      */
-    public function create(array $data): int
-    {
-        $this->pdo->beginTransaction();
-        try {
-            // Determinar tipo de usuario; por defecto TEC (technician)
-            $user_type = strtoupper(trim((string)($data['user_type'] ?? 'TEC')));
-            // Validación básica: debe ser 2-4 chars (ajusta según tu constraint)
-            if ($user_type === '' || strlen($user_type) > 4) {
-                throw new InvalidArgumentException('Invalid user_type provided');
-            }
-
-            // Insertar en users (ahora incluyendo user_type)
-            $sql_u = "INSERT INTO users
-                (email, password_hash, contractor_id, user_type, is_active, email_verification_token, email_verification_expires_at, created_at)
-                VALUES (:email, :pwhash, :contractor_id, :user_type, 0, :token, :token_expires, NOW())";
-            $st = $this->pdo->prepare($sql_u);
-            $st->execute([
-                ':email' => $data['email'],
-                ':pwhash' => $data['password_hash'],
-                ':contractor_id' => $data['contractor_id'] ?? null,
-                ':user_type' => $user_type,
-                ':token' => $data['email_verification_token'] ?? null,
-                ':token_expires' => $data['email_verification_expires_at'] ?? null,
-            ]);
-            $user_id = (int)$this->pdo->lastInsertId();
-
-            // Insertar en user_details
-            $details = $data['details'] ?? [];
-            $sql_d = "INSERT INTO user_details
-                (user_id, first_name, last_name, phone_number, epa_certification_number, certifying_organization, epa_photo_url, epa_photo_filename, epa_photo_mime, epa_photo_size, epa_photo_checksum, created_at)
-                VALUES
-                (:user_id, :first_name, :last_name, :phone_number, :epa_cert, :cert_org, :epa_photo_url, :epa_filename, :epa_mime, :epa_size, :epa_checksum, NOW())";
-            $st2 = $this->pdo->prepare($sql_d);
-            $st2->execute([
-                ':user_id' => $user_id,
-                ':first_name' => $details['first_name'] ?? null,
-                ':last_name' => $details['last_name'] ?? null,
-                ':phone_number' => $details['phone_number'] ?? null,
-                ':epa_cert' => $details['epa_certification_number'] ?? null,
-                ':cert_org' => $details['certifying_organization'] ?? null,
-                ':epa_photo_url' => $details['epa_photo_url'] ?? null,
-                ':epa_filename' => $details['epa_photo_filename'] ?? null,
-                ':epa_mime' => $details['epa_photo_mime'] ?? null,
-                ':epa_size' => $details['epa_photo_size'] ?? null,
-                ':epa_checksum' => $details['epa_photo_checksum'] ?? null,
-            ]);
-
-            $this->pdo->commit();
-            return $user_id;
-        } catch (Throwable $e) {
-            $this->pdo->rollBack();
-            // Lanzar excepción con contexto claro
-            throw new RuntimeException('DB error creating user: ' . $e->getMessage(), 0, $e);
+public function create(array $data): string
+{
+    $this->pdo->beginTransaction();
+    try {
+        $user_type = strtoupper(trim((string)($data['user_type'] ?? 'TEC')));
+        if ($user_type === '' || strlen($user_type) > 4) {
+            throw new InvalidArgumentException('Invalid user_type provided');
         }
+
+        $sql_u = "INSERT INTO users
+            (email, password_hash, contractor_id, user_type, is_active, email_verification_token, email_verification_expires_at, created_at)
+            VALUES (:email, :pwhash, :contractor_id, :user_type, 0, :token, :token_expires, NOW())";
+        $st = $this->pdo->prepare($sql_u);
+        $st->execute([
+            ':email' => $data['email'],
+            ':pwhash' => $data['password_hash'],
+            ':contractor_id' => $data['contractor_id'] ?? null,
+            ':user_type' => $user_type,
+            ':token' => $data['email_verification_token'] ?? null,
+            ':token_expires' => $data['email_verification_expires_at'] ?? null,
+        ]);
+
+        // Obtener el user_id real (puede ser 'U12345' generado por trigger)
+        $sql_select_id = "SELECT user_id FROM users WHERE email = :email LIMIT 1 FOR UPDATE";
+        $st_sel = $this->pdo->prepare($sql_select_id);
+        $st_sel->execute([':email' => $data['email']]);
+        $row = $st_sel->fetch(PDO::FETCH_ASSOC);
+        if (!$row || empty($row['user_id'])) {
+            throw new RuntimeException('Unable to determine created user_id after insert.');
+        }
+        $user_id = (string)$row['user_id']; // mantener como string
+
+        // Insertar en user_details usando el user_id como string (sin cast a int)
+        $details = $data['details'] ?? [];
+        $sql_d = "INSERT INTO user_details
+            (user_id, first_name, last_name, phone_number, epa_certification_number, certifying_organization, epa_photo_url, epa_photo_filename, epa_photo_mime, epa_photo_size, epa_photo_checksum, created_at)
+            VALUES
+            (:user_id, :first_name, :last_name, :phone_number, :epa_cert, :cert_org, :epa_photo_url, :epa_filename, :epa_mime, :epa_size, :epa_checksum, NOW())";
+        $st2 = $this->pdo->prepare($sql_d);
+        $st2->execute([
+            ':user_id' => $user_id,
+            ':first_name' => $details['first_name'] ?? null,
+            ':last_name' => $details['last_name'] ?? null,
+            ':phone_number' => $details['phone_number'] ?? null,
+            ':epa_cert' => $details['epa_certification_number'] ?? null,
+            ':cert_org' => $details['certifying_organization'] ?? null,
+            ':epa_photo_url' => $details['epa_photo_url'] ?? null,
+            ':epa_filename' => $details['epa_photo_filename'] ?? null,
+            ':epa_mime' => $details['epa_photo_mime'] ?? null,
+            ':epa_size' => $details['epa_photo_size'] ?? null,
+            ':epa_checksum' => $details['epa_photo_checksum'] ?? null,
+        ]);
+
+        $this->pdo->commit();
+        return $user_id;
+    } catch (Throwable $e) {
+        $this->pdo->rollBack();
+        throw new RuntimeException('DB error creating user: ' . $e->getMessage(), 0, $e);
     }
+}
+
 
     /**
      * Buscar usuario por token de verificación

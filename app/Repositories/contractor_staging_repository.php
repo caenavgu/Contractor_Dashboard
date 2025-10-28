@@ -9,7 +9,7 @@ class ContractorStagingRepository
 {
     public function __construct(private PDO $pdo) {}
 
-    public function create(array $input, ?int $existing_contractor_id, ?int $created_by_user_id): int
+    public function create(array $input, ?int $existing_contractor_id, ?int $created_by_user_id): string
     {
         $sql = "INSERT INTO contractor_staging
             (existing_contractor_id, input_cac_license_number, input_company_name, input_address, input_address_2, input_city, input_state_code, input_zip_code, input_company_phone, input_company_email, input_company_website, input_raw_json, created_by_user_id, status, created_at)
