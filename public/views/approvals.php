@@ -1,5 +1,25 @@
 <?php
 // public/views/approvals.php
+// -------------------------------------------------------------
+// UI de aprobaciones (Bootstrap 5)
+// - Secciones:
+//   1) Pending Users
+//   2) Pending Contractors
+//   3) Contractor Conflicts (Staging) -> Merge / Keep
+// -------------------------------------------------------------
+declare(strict_types=1);
+
+// Datos esperados del presenter:
+$pending_users        = $view['pending_users']        ?? [];
+$pending_contractors  = $view['pending_contractors']  ?? [];
+$pending_staging      = $view['pending_staging']      ?? [];
+
+// Mensajes (opcional)
+$flash_message = $view['message'] ?? null;
+
+ensure_csrf_token();
+$csrf = $_SESSION['csrf_token'] ?? '';
+$action_url = route_url('/approvals');
 ?>
 <!doctype html>
 <html lang="en">
@@ -9,176 +29,188 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <base href="<?= sanitize_string(base_url('/')) ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="<?= asset_url('css/app.css') ?>">
+  <style>
+    .section-title{ margin-top: 16px; margin-bottom: 8px; }
+    .table td, .table th { vertical-align: middle; }
+    .diff-box { background:#f8f9fa; border:1px solid #dee2e6; border-radius:8px; padding:12px; }
+  </style>
 </head>
-<body class="app-page bg-light">
-  <main class="container py-4">
-    <div class="dashboard-panel mx-auto" style="max-width: 980px;">
-      <div class="d-flex align-items-center justify-content-between mb-3">
-        <h1 class="h4 mb-0">Approvals</h1>
-        <a href="<?= route_url('/dashboard') ?>" class="btn btn-sm btn-outline-secondary">Back to dashboard</a>
-      </div>
+<body class="bg-light">
+<div class="container py-4">
+  <h1 class="h4 mb-3">Approvals</h1>
 
-      <?php if (!empty($view['message'])): ?>
-        <div class="alert alert-success"><?= sanitize_string($view['message']) ?></div>
-      <?php endif; ?>
-      <?php if (!empty($view['error'])): ?>
-        <div class="alert alert-danger"><?= sanitize_string($view['error']) ?></div>
-      <?php endif; ?>
+  <?php if (!empty($flash_message)): ?>
+    <div class="alert alert-info"><?= sanitize_string($flash_message) ?></div>
+  <?php endif; ?>
 
-      <div class="card mb-4">
-        <div class="card-body">
-          <h5 class="card-title">Pending Users</h5>
-          <?php if (empty($view['pending_users'])): ?>
-            <p class="text-muted small mb-0">No pending users.</p>
-          <?php else: ?>
-            <div class="table-responsive">
-              <table class="table table-sm align-middle">
-                <thead>
-                  <tr>
-                    <th>Email</th>
-                    <th>Name</th>
-                    <th>Verified at</th>
-                    <th style="width:220px;">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($view['pending_users'] as $u): ?>
-                  <tr>
-                    <td><?= sanitize_string($u['email']) ?></td>
-                    <td><?= sanitize_string(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? '')) ?></td>
-                    <td><?= sanitize_string($u['email_verified_at'] ?? '') ?></td>
-                    <td>
-                      <form class="d-inline" method="post" action="<?= route_url('/approvals') ?>">
-                        <input type="hidden" name="action" value="approve_user">
-                        <input type="hidden" name="user_id" value="<?= sanitize_string($u['user_id']) ?>">
-                        <button class="btn btn-sm btn-success">Approve</button>
-                      </form>
-                      <button class="btn btn-sm btn-outline-danger ms-1" data-bs-toggle="modal" data-bs-target="#rejectModal" data-user-id="<?= sanitize_string($u['user_id']) ?>">Reject</button>
-                    </td>
-                  </tr>
-                <?php endforeach; ?>
-                </tbody>
-              </table>
-            </div>
-          <?php endif; ?>
-        </div>
-      </div>
-
-      <div class="card mb-4">
-        <div class="card-body">
-          <h5 class="card-title">Pending Contractor Stagings</h5>
-          <?php if (empty($view['pending_stagings'])): ?>
-            <p class="text-muted small mb-0">No pending stagings.</p>
-          <?php else: ?>
-            <?php foreach ($view['pending_stagings'] as $s): ?>
-              <div class="border rounded p-2 mb-2">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <strong>#<?= (int)$s['staging_id'] ?></strong>
-                    · CAC: <?= sanitize_string($s['input_cac_license_number']) ?>
-                    · Created: <?= sanitize_string($s['created_at']) ?>
-                  </div>
-                  <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#stg-<?= (int)$s['staging_id'] ?>">Open</button>
-                </div>
-                <div id="stg-<?= (int)$s['staging_id'] ?>" class="collapse mt-2">
-                  <form method="post" action="<?= route_url('/approvals') ?>">
-                    <input type="hidden" name="action" value="merge_staging">
-                    <input type="hidden" name="staging_id" value="<?= (int)$s['staging_id'] ?>">
-                    <div class="row">
-                      <div class="col-md-6">
-                        <h6>Existing Contractor</h6>
-                        <?php
-                          // búsqueda rápida del existente por CAC (solo para vista)
-                          $existing = null;
-                          try {
-                            $cr = new ContractorRepository($pdo);
-                            $existing = $cr->find_by_cac((string)$s['input_cac_license_number']);
-                          } catch (\Throwable $e) { /* ignore */ }
-                        ?>
-                        <?php if ($existing): ?>
-                          <div><strong>Company:</strong> <?= sanitize_string($existing['company_name'] ?? '') ?></div>
-                          <div><strong>Address:</strong> <?= sanitize_string($existing['address'] ?? '') ?></div>
-                          <div><strong>City/State/Zip:</strong> <?= sanitize_string(($existing['city'] ?? '') . ' / ' . ($existing['state_code'] ?? '') . ' / ' . ($existing['zip_code'] ?? '')) ?></div>
-                        <?php else: ?>
-                          <div class="text-muted">No existing contractor found (by CAC).</div>
-                        <?php endif; ?>
-                      </div>
-                      <div class="col-md-6">
-                        <h6>Staging Proposal (select to merge)</h6>
-                        <?php
-                          $fields = [
-                            'input_company_name'   => 'Company',
-                            'input_address'        => 'Address',
-                            'input_address_2'      => 'Address 2',
-                            'input_city'           => 'City',
-                            'input_state_code'     => 'State code',
-                            'input_zip_code'       => 'Zip',
-                            'input_company_phone'  => 'Phone',
-                            'input_company_email'  => 'Email',
-                            'input_company_website'=> 'Website',
-                          ];
-                          foreach ($fields as $k => $label):
-                              $val = $s[$k] ?? '';
-                        ?>
-                          <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="apply_fields[]" value="<?= $k ?>" id="<?= $k . '-' . (int)$s['staging_id'] ?>" <?= $val ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="<?= $k . '-' . (int)$s['staging_id'] ?>">
-                              <?= $label ?>: <?= sanitize_string($val) ?>
-                            </label>
-                          </div>
-                        <?php endforeach; ?>
-                      </div>
-                    </div>
-                    <div class="mt-3">
-                      <button class="btn btn-sm btn-success">Merge selected fields</button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            <?php endforeach; ?>
-          <?php endif; ?>
-        </div>
-      </div>
-    </div>
-  </main>
-
-  <!-- Reject Modal -->
-  <div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-      <form class="modal-content" method="post" action="<?= route_url('/approvals') ?>">
-        <input type="hidden" name="action" value="reject_user">
-        <input type="hidden" name="user_id" id="reject-user-id" value="">
-        <div class="modal-header">
-          <h5 class="modal-title">Reject user</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-2">
-            <label class="form-label">Reason (optional)</label>
-            <textarea class="form-control" name="reason" rows="3" placeholder="Your data could not be verified. Please contact Technical Support."></textarea>
-          </div>
-          <p class="small text-muted mb-0">The user will receive an email with this information.</p>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
-          <button class="btn btn-danger" type="submit">Reject</button>
-        </div>
-      </form>
-    </div>
+  <!-- 1) Pending Users -->
+  <h2 class="h5 section-title">Pending Users</h2>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle">
+      <thead>
+        <tr>
+          <th>User ID</th>
+          <th>Email</th>
+          <th>Type</th>
+          <th>Contractor ID</th>
+          <th>Email Verified</th>
+          <th>Status</th>
+          <th width="180">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      <?php if (!$pending_users): ?>
+        <tr><td colspan="7" class="text-muted">No pending users.</td></tr>
+      <?php else: foreach ($pending_users as $u): ?>
+        <tr>
+          <td><?= sanitize_string($u['user_id']) ?></td>
+          <td><?= sanitize_string($u['email']) ?></td>
+          <td><?= sanitize_string($u['user_type']) ?></td>
+          <td><?= sanitize_string((string)($u['contractor_id'] ?? '')) ?></td>
+          <td><?= sanitize_string((string)($u['email_verified_at'] ?? '')) ?></td>
+          <td><span class="badge text-bg-warning"><?= sanitize_string($u['status']) ?></span></td>
+          <td>
+            <form class="d-inline" method="post" action="<?= $action_url ?>">
+              <input type="hidden" name="_csrf" value="<?= sanitize_string($csrf) ?>">
+              <input type="hidden" name="user_id" value="<?= sanitize_string($u['user_id']) ?>">
+              <button name="action" value="approve_user" class="btn btn-sm btn-success">Approve</button>
+            </form>
+            <form class="d-inline" method="post" action="<?= $action_url ?>" onsubmit="return confirmReject(this);">
+              <input type="hidden" name="_csrf" value="<?= sanitize_string($csrf) ?>">
+              <input type="hidden" name="user_id" value="<?= sanitize_string($u['user_id']) ?>">
+              <input type="hidden" name="reason" value="">
+              <button name="action" value="reject_user" class="btn btn-sm btn-danger">Reject</button>
+            </form>
+          </td>
+        </tr>
+      <?php endforeach; endif; ?>
+      </tbody>
+    </table>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    // Cargar user_id en el modal de rechazo
-    (function(){
-      const modal = document.getElementById('rejectModal');
-      modal.addEventListener('show.bs.modal', function (event) {
-        const btn = event.relatedTarget;
-        const uid = btn?.getAttribute('data-user-id') || '';
-        document.getElementById('reject-user-id').value = uid;
-      });
-    })();
-  </script>
+  <!-- 2) Pending Contractors -->
+  <h2 class="h5 section-title">Pending Contractors</h2>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>CAC</th>
+          <th>Company</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th>City/State</th>
+          <th>Status</th>
+          <th width="220">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      <?php if (!$pending_contractors): ?>
+        <tr><td colspan="8" class="text-muted">No pending contractors.</td></tr>
+      <?php else: foreach ($pending_contractors as $c): ?>
+        <tr>
+          <td><?= (int)$c['contractor_id'] ?></td>
+          <td><?= sanitize_string($c['cac_license_number']) ?></td>
+          <td><?= sanitize_string($c['company_name']) ?></td>
+          <td><?= sanitize_string((string)$c['company_phone']) ?></td>
+          <td><?= sanitize_string((string)$c['company_email']) ?></td>
+          <td><?= sanitize_string($c['city']) ?>/<?= sanitize_string($c['state_code']) ?></td>
+          <td><span class="badge text-bg-warning"><?= sanitize_string($c['status']) ?></span></td>
+          <td>
+            <form class="d-inline" method="post" action="<?= $action_url ?>">
+              <input type="hidden" name="_csrf" value="<?= sanitize_string($csrf) ?>">
+              <input type="hidden" name="contractor_id" value="<?= (int)$c['contractor_id'] ?>">
+              <button name="action" value="approve_contractor" class="btn btn-sm btn-success">Approve</button>
+            </form>
+            <form class="d-inline" method="post" action="<?= $action_url ?>" onsubmit="return confirmReject(this);">
+              <input type="hidden" name="_csrf" value="<?= sanitize_string($csrf) ?>">
+              <input type="hidden" name="contractor_id" value="<?= (int)$c['contractor_id'] ?>">
+              <input type="hidden" name="reason" value="">
+              <button name="action" value="reject_contractor" class="btn btn-sm btn-danger">Reject</button>
+            </form>
+          </td>
+        </tr>
+      <?php endforeach; endif; ?>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 3) Contractor Conflicts (Staging) -->
+  <h2 class="h5 section-title">Contractor Conflicts (Staging)</h2>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle">
+      <thead>
+        <tr>
+          <th>Staging ID</th>
+          <th>CAC</th>
+          <th>Company (staged)</th>
+          <th>Phone / Email</th>
+          <th>Address</th>
+          <th width="260">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      <?php if (!$pending_staging): ?>
+        <tr><td colspan="6" class="text-muted">No conflicts pending.</td></tr>
+      <?php else: foreach ($pending_staging as $s): ?>
+        <?php
+          // Intentamos localizar el contractor existente por CAC
+          // (si se insertó staging por duplicado de CAC)
+          $existing_path = route_url('/approvals'); // no necesitamos URL; solo render
+        ?>
+        <tr>
+          <td><?= (int)$s['staging_id'] ?></td>
+          <td><?= sanitize_string($s['cac_license_number']) ?></td>
+          <td><?= sanitize_string($s['company_name']) ?></td>
+          <td><?= sanitize_string((string)$s['company_phone']) ?><br><?= sanitize_string((string)$s['company_email']) ?></td>
+          <td>
+            <div class="small">
+              <?= sanitize_string($s['address']) ?> <?= sanitize_string((string)$s['address_2']) ?><br>
+              <?= sanitize_string($s['city']) ?>, <?= sanitize_string($s['state_code']) ?> <?= sanitize_string($s['zip_code']) ?>
+            </div>
+          </td>
+          <td>
+            <!-- Merge (necesita contractor_id destino) -->
+            <form class="d-inline" method="post" action="<?= $action_url ?>" onsubmit="return askContractorId(this);">
+              <input type="hidden" name="_csrf" value="<?= sanitize_string($csrf) ?>">
+              <input type="hidden" name="staging_id" value="<?= (int)$s['staging_id'] ?>">
+              <input type="hidden" name="contractor_id" value="">
+              <button name="action" value="merge_contractor" class="btn btn-sm btn-primary">Merge</button>
+            </form>
+            <!-- Keep (descartar staging) -->
+            <form class="d-inline" method="post" action="<?= $action_url ?>" onsubmit="return askContractorId(this, true);">
+              <input type="hidden" name="_csrf" value="<?= sanitize_string($csrf) ?>">
+              <input type="hidden" name="staging_id" value="<?= (int)$s['staging_id'] ?>">
+              <input type="hidden" name="contractor_id" value="">
+              <button name="action" value="keep_contractor" class="btn btn-sm btn-secondary">Keep Existing</button>
+            </form>
+          </td>
+        </tr>
+      <?php endforeach; endif; ?>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+function confirmReject(formEl){
+  const reason = prompt('Please enter a short reason:','Data could not be verified');
+  if (reason === null) return false;
+  formEl.querySelector('input[name="reason"]').value = reason.trim();
+  return true;
+}
+
+function askContractorId(formEl, keepOnly=false){
+  const msg = keepOnly
+    ? 'Enter the existing contractor_id to KEEP (discard staging):'
+    : 'Enter the existing contractor_id to MERGE INTO (existing record will be updated except CAC):';
+  const id = prompt(msg,'');
+  if (!id) return false;
+  formEl.querySelector('input[name="contractor_id"]').value = id.trim();
+  return true;
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

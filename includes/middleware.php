@@ -1,47 +1,48 @@
 <?php
 // includes/middleware.php
 // -------------------------------------------------------------
-// Middleware simples para proteger rutas de admin/aprobaciones.
-// Intenta detectar el usuario actual desde la sesión.
+// Middlewares y guards de acceso.
+// - current_user() e is_admin_user()
+// - require_signed_in() y require_admin_guard()
 // -------------------------------------------------------------
 declare(strict_types=1);
 
-/**
- * Devuelve el arreglo del usuario autenticado desde sesión (o null).
- * Ajusta aquí si tu sesión guarda el usuario en otra clave.
- */
-function current_user_from_session(): ?array
+/** Devuelve el usuario actual desde la sesión (o null si no hay). */
+function current_user(): ?array
 {
-    // intentos comunes:
-    if (!empty($_SESSION['auth_user']) && is_array($_SESSION['auth_user'])) {
-        return $_SESSION['auth_user'];
-    }
-    if (!empty($_SESSION['user']) && is_array($_SESSION['user'])) {
-        return $_SESSION['user'];
-    }
-    return null;
+    return $_SESSION['user'] ?? null;
 }
 
-/**
- * Verifica si el usuario actual es admin o soporte (ADM/SOP).
- */
-function is_admin_user(?array $user): bool
+/** ¿El usuario actual es admin? Acepta 'ADM' y 'ADMIN'. */
+function is_admin_user(?array $u): bool
 {
-    if (!$user) return false;
-    $user_type = strtoupper((string)($user['user_type'] ?? ''));
-    return in_array($user_type, ['ADM','SOP'], true);
+    if (!$u) return false;
+    $t = strtoupper(trim((string)($u['user_type'] ?? '')));
+    return ($t === 'ADM' || $t === 'ADMIN');
 }
 
-/**
- * Requiere usuario admin; si no, responde 403 con mensaje simple.
- */
-function require_admin_or_403(): void
+/** Guard para rutas que requieren sesión. */
+function require_signed_in(): ?string
 {
-    $u = current_user_from_session();
+    $u = current_user();
+    if (!$u) {
+        http_response_code(401);
+        echo '<h1>401 Unauthorized</h1><p>Please sign in.</p>';
+        return null;
+    }
+    return (string)($u['user_id'] ?? '');
+}
+
+/** Guard para rutas que requieren rol admin. */
+function require_admin_guard(): ?string
+{
+    $u = current_user();
     if (!is_admin_user($u)) {
         http_response_code(403);
-        header('Content-Type: text/html; charset=utf-8');
         echo '<h1>403 Forbidden</h1><p>You do not have permission to access this page.</p>';
-        exit;
+        return null;
     }
+    return (string)($u['user_id'] ?? '');
 }
+
+

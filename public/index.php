@@ -1,173 +1,146 @@
 <?php
+// public/index.php
+// -------------------------------------------------------------
+// Front controller: enruta peticiones a Presenters.
+// - Requiere bootstrap (helpers/middleware/config/DB)
+// - Instancia repos, servicios y presenters
+// - Define rutas usando route_url() y redirect_to()
+// -------------------------------------------------------------
 declare(strict_types=1);
+
+/* Bootstrap: helpers + middleware + config + DB + mailer */
 require __DIR__ . '/../includes/bootstrap.php';
-require __DIR__ . '/../includes/middleware.php';
 
-// Crea instancias necesarias
-$user_repo    = new UserRepository($pdo);
-$contractor_repo = new ContractorRepository($pdo);
-$staging_repo = new ContractorStagingRepository($pdo);
-$audit_repo   = new AuditLogRepository($pdo);
+/* ---------- Carga de clases (nombres nuevos StudlyCaps) ---------- */
+// Repos
+require_once __DIR__ . '/../app/Repositories/UserRepository.php';
+require_once __DIR__ . '/../app/Repositories/SessionRepository.php';
+require_once __DIR__ . '/../app/Repositories/AuditLogRepository.php';
+require_once __DIR__ . '/../app/Repositories/ContractorRepository.php';
+require_once __DIR__ . '/../app/Repositories/ContractorStagingRepository.php';
+require_once __DIR__ . '/../app/Repositories/UserDetailsRepository.php';   // ✅ añadido
+require_once __DIR__ . '/../app/Repositories/UsaStatesRepository.php';
 
-// Services / Presenters
-$sign_up_service = new SignUpService($user_repo, $contractor_repo, $staging_repo, $audit_repo);
-$sign_up_presenter = new SignUpPresenter($sign_up_service);
+// Servicios
+require_once __DIR__ . '/../app/Services/AuthService.php';
+require_once __DIR__ . '/../app/Services/SignUpService.php';
+require_once __DIR__ . '/../app/Services/ApprovalService.php';
 
-// Sign-in dependencies (si ya los tienes)
-$session_repo = new SessionRepository($pdo);
-$auth_srv     = new AuthService($user_repo, $session_repo, $audit_repo);
-$signin       = new SignInPresenter($auth_srv);
+// Presenters
+require_once __DIR__ . '/../app/Presenters/SignInPresenter.php';
+require_once __DIR__ . '/../app/Presenters/SignUpPresenter.php';
+require_once __DIR__ . '/../app/Presenters/ApprovalsPresenter.php';
 
-// Aprobaciones
-require_once __DIR__ . '/../app/Services/approval_service.php';
-require_once __DIR__ . '/../app/Presenters/approvals_presenter.php';
-$approval_service   = new ApprovalService($pdo, $user_repo, $contractor_repo, $staging_repo, $audit_repo);
-$approvals_presenter= new ApprovalsPresenter($pdo, $approval_service, $staging_repo);
+/* ---------- Instancias ---------- */
+$user_repo        = new UserRepository($pdo);
+$session_repo     = new SessionRepository($pdo);
+$audit_repo       = new AuditLogRepository($pdo);
+$contractor_repo  = new ContractorRepository($pdo);
+$staging_repo     = new ContractorStagingRepository($pdo);
+$user_details_repo = new UserDetailsRepository($pdo);   // ✅ añadido
 
+// Servicios
+$auth_service = new AuthService($user_repo, $session_repo, $audit_repo);
+
+$sign_up_service = new SignUpService(    // ✅ orden correcto
+    $pdo,                                // 1. PDO
+    $user_repo,                          // 2. UserRepository
+    $contractor_repo,                    // 3. ContractorRepository
+    $user_details_repo,                  // 4. UserDetailsRepository
+    $audit_repo                          // 5. AuditLogRepository
+);
+
+$approval_service = new ApprovalService(
+    $pdo,
+    $user_repo,
+    $contractor_repo,
+    $staging_repo,
+    $audit_repo
+);
+
+// Presenters
+$sign_in_presenter   = new SignInPresenter($auth_service);
+$sign_up_presenter   = new SignUpPresenter($pdo);  // ✅ el presenter crea el service internamente
+$approvals_presenter = new ApprovalsPresenter($pdo, $approval_service, $staging_repo, $contractor_repo);
+
+/* ---------- Routing ---------- */
 $uri_path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
 
-/* SIGN IN (existing) */
-if ($uri_path === route_url('/sign-in') || $uri_path === '/sign-in') {
-    $view = $_SERVER['REQUEST_METHOD'] === 'POST' ? $signin->handle_post($pdo) : $signin->handle_get();
-    if (!empty($view['_redirect'])) {
-        header('Location: ' . route_url($view['_redirect']), true, 302);
-        exit;
-    }
-    require __DIR__ . '/views/sign_in.php';
+/* Rutas normalizadas */
+$R_HOME            = route_url('/');
+$R_SIGN_IN         = route_url('/sign-in');
+$R_SIGN_UP         = route_url('/sign-up');
+$R_SIGN_UP_SUCCESS = route_url('/sign-up-success');
+$R_VERIFY_EMAIL    = route_url('/verify-email');
+$R_APPROVALS       = route_url('/approvals');
+$R_DASHBOARD       = route_url('/dashboard');
+
+/* Home -> redirigir a sign-in */
+if ($uri_path === $R_HOME || $uri_path === rtrim($R_HOME, '/') . '/index.php') {
+    redirect_to('/sign-in');
     exit;
 }
 
-/* SIGN UP */
-if ($uri_path === route_url('/sign-up') || $uri_path === '/sign-up') {
+/* Sign in */
+if ($uri_path === $R_SIGN_IN) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $view = $sign_up_presenter->handle_post();
+        $sign_in_presenter->handle_post();
     } else {
-        $view = $sign_up_presenter->handle_get();
+        $sign_in_presenter->handle_get();
     }
-    require __DIR__ . '/views/sign_up.php';
     exit;
 }
 
-/* VERIFY EMAIL */
-if ($uri_path === route_url('/verify-email') || $uri_path === '/verify-email') {
-    $token = $_GET['token'] ?? '';
-    if (empty($token)) {
-        echo "Invalid token";
-        exit;
-    }
-    $user = $user_repo->find_by_verification_token($token);
-    if (!$user) {
-        echo "Token invalid or expired.";
-        exit;
-    }
-    // Marcar verificado
-    $user_repo->mark_email_verified((int)$user['user_id']);
-    // Enviar email "under review"
-    $subject = 'Your profile is under review';
-    $body = "<p>Dear " . htmlspecialchars($user['first_name'] ?? '') . ",</p>
-             <p>Your profile has been verified and is now under review. This process can take 24-72 hours.</p>";
-    send_mail($user['email'], $subject, $body);
-    $audit_repo->add($user['user_id'], 'user', $user['user_id'], 'email_user', ['type'=>'under_review_sent']);
-    echo "<p>Email verified. Your profile is under review. You will receive another email within 24-72 hours.</p>";
-    exit;
-}
-
-/* APPROVALS (GET/POST) */
-if ($uri_path === route_url('/approvals') || $uri_path === '/approvals') {
-    require_admin_or_403(); // proteger
+/* Sign up */
+if ($uri_path === $R_SIGN_UP) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $approvals_presenter->handle_post();
-        exit; // handle_post hace redirect
+        $sign_up_presenter->handle_post();
+    } else {
+        $sign_up_presenter->handle_get();
+    }
+    exit;
+}
+
+/* Sign up success (view simple) */
+if ($uri_path === $R_SIGN_UP_SUCCESS) {
+    require __DIR__ . '/views/sign-up-success.php';
+    exit;
+}
+
+/* Verify email */
+$R_VERIFY = route_url('/verify-email');
+if ($uri_path === $R_VERIFY) {
+    $sign_up_presenter->handle_verify();
+    exit;
+}
+
+/* Approvals (solo admin) */
+if ($uri_path === $R_APPROVALS) {
+    $u = $_SESSION['user'] ?? null;
+    $t = strtoupper(trim((string)($u['user_type'] ?? '')));
+    if (!$u || !in_array($t, ['ADM', 'ADMIN'], true)) {
+        http_response_code(403);
+        echo '<h1>403 Forbidden</h1><p>You do not have permission to access this page.</p>';
+        exit;
+    }
+    $admin_user_id = (string)$u['user_id'];
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (!validate_csrf_token((string)($_POST['_csrf'] ?? ''))) {
+            http_response_code(400);
+            echo '<h1>400 Bad Request</h1><p>Invalid CSRF token.</p>';
+            exit;
+        }
+        $action = $_POST['action'] ?? '';
+        $result = $approvals_presenter->handle_post($action, $_POST, $admin_user_id);
+        $view   = array_merge($approvals_presenter->handle_get(), $result);
     } else {
         $view = $approvals_presenter->handle_get();
-        require __DIR__ . '/views/approvals.php';
-        exit;
     }
-}
-
-// /* APPROVALS (admin minimal) */
-// if ($uri_path === route_url('/approvals') || $uri_path === '/approvals') {
-//     // NOTE: aquí deberías validar que el actor es admin; por ahora es acceso abierto en MVP
-//     // Cargamos pending stagings y users waiting (email_verified_at != NULL and is_active=0)
-//     $pending_stagings = $staging_repo->find_pending();
-//     $sql = "SELECT user_id, email, first_name, last_name, email_verified_at, is_active FROM users WHERE email_verified_at IS NOT NULL AND is_active = 0 ORDER BY created_at DESC";
-//     $st = $pdo->query($sql);
-//     $pending_users = $st->fetchAll();
-
-//     require __DIR__ . '/views/approvals.php';
-//     exit;
-// }
-
-// /* APPROVAL ACTIONS: approve user (POST) */
-// if ($uri_path === route_url('/approvals/user/approve') && $_SERVER['REQUEST_METHOD'] === 'POST') {
-//     $user_id = (int)($_POST['user_id'] ?? 0);
-//     $admin_id = 1; // TODO: obtener admin id real desde sesión
-//     $user_repo->activate_user($user_id, $admin_id);
-//     $audit_repo->add($admin_id, 'user', $user_id, 'user_approved', ['by'=>$admin_id]);
-//     // enviar correo
-//     $user = $pdo->prepare("SELECT email, first_name FROM users WHERE user_id = :id");
-//     $user->execute([':id'=>$user_id]); $u = $user->fetch();
-//     if ($u) {
-//         send_mail($u['email'], 'Your account has been approved', "<p>Dear " . htmlspecialchars($u['first_name'] ?? '') . ",</p><p>Your account has been approved.</p>");
-//     }
-//     header('Location: ' . route_url('/approvals'));
-//     exit;
-// }
-
-/* STAGING MERGE / DISCARD minimal endpoints */
-if ($uri_path === route_url('/approvals/staging/merge') && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $staging_id = (int)($_POST['staging_id'] ?? 0);
-    $admin_id = 1;
-    $staging = $staging_repo->find_by_id($staging_id);
-    if (!$staging) { header('Location: ' . route_url('/approvals')); exit; }
-    // Apply selected fields (from POST 'apply_fields' array)
-    $apply = $_POST['apply_fields'] ?? [];
-    $fields_to_apply = [];
-    foreach ($apply as $field) {
-        // map field input_* to contractor field name
-        $map = [
-            'input_company_name'=>'company_name',
-            'input_address'=>'address',
-            'input_address_2'=>'address_2',
-            'input_city'=>'city',
-            'input_state_code'=>'state_code',
-            'input_zip_code'=>'zip_code',
-            'input_company_phone'=>'company_phone',
-            'input_company_email'=>'company_email',
-            'input_company_website'=>'company_website'
-        ];
-        if (isset($map[$field])) {
-            $fields_to_apply[$map[$field]] = $staging[$field];
-        }
-    }
-    // update contractor
-    if ($staging['existing_contractor_id']) {
-        $contractor_id = (int)$staging['existing_contractor_id'];
-        $contractor_repo->update_partial($contractor_id, $fields_to_apply);
-        $staging_repo->mark_merged($staging_id, $admin_id);
-        $audit_repo->add($admin_id, 'contractor', $contractor_id, 'contractor_merge_performed', ['staging_id'=>$staging_id, 'applied_fields'=>array_keys($fields_to_apply)]);
-    }
-    header('Location: ' . route_url('/approvals'));
+    require __DIR__ . '/views/approvals.php';
     exit;
 }
 
-if ($uri_path === route_url('/approvals/staging/discard') && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $staging_id = (int)($_POST['staging_id'] ?? 0);
-    $admin_id = 1;
-    $staging_repo->mark_discarded($staging_id, $admin_id);
-    $audit_repo->add($admin_id, 'contractor_staging', $staging_id, 'contractor_staging_discarded', []);
-    header('Location: ' . route_url('/approvals'));
-    exit;
-}
-
-/* DASHBOARD (placeholder) */
-if ($uri_path === route_url('/dashboard') || $uri_path === '/dashboard') {
-    require __DIR__ . '/views/dashboard.php';
-    exit;
-}
-
-/* HOME fallback */
-header('Content-Type: text/html; charset=utf-8');
-?>
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Contractor App</title><meta name="viewport" content="width=device-width, initial-scale=1"><base href="<?= sanitize_string(base_url('/')) ?>"><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"></head><body class="bg-light"><div class="container py-5"><h1 class="mb-3">Contractor App</h1><p class="text-muted">Go to <a href="<?= route_url('/sign-in') ?>">Sign In</a> or <a href="<?= route_url('/sign-up') ?>">Sign Up</a>.</p></div></body></html>
+/* 404 por defecto */
+http_response_code(404);
+echo '<h1>404 Not Found</h1><p>Route not found: ' . sanitize_string($uri_path) . '</p>';
