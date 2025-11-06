@@ -86,4 +86,34 @@ class AuthService
         ]);
     }
 
+    public function logout(string $token, ?string $userId = null): void
+    {
+        // Borra la sesión persistente por token
+        try {
+            $this->session_repo->deleteByToken($token);
+            if ($userId !== null) {
+                if (method_exists($this->audit_repo, 'add')) {
+                    $this->audit_repo->add((string)$userId, 'user', (string)$userId, 'logout', []);
+                } elseif (method_exists($this->audit_repo, 'log')) {
+                    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+                    $this->audit_repo->log((int)$userId, 'logout', $ip, []);
+                }
+            }
+        } catch (\Throwable $_) { /* no-op */ }
+    }
+
+    public function logoutAll(string $userId): void
+    {
+        // Cierra todas las sesiones del usuario
+        try {
+            $this->session_repo->deleteAllForUser($userId);
+            if (method_exists($this->audit_repo, 'add')) {
+                $this->audit_repo->add((string)$userId, 'user', (string)$userId, 'logout_all', []);
+            } elseif (method_exists($this->audit_repo, 'log')) {
+                $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+                $this->audit_repo->log((int)$userId, 'logout_all', $ip, []);
+            }
+        } catch (\Throwable $_) { /* no-op */ }
+    }
+
 }

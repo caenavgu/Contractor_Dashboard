@@ -37,6 +37,22 @@ $action_url = route_url('/approvals');
 </head>
 <body class="bg-light">
 <div class="container py-4">
+
+
+
+<form action="<?= sanitize_string(route_url('/sign-out')) ?>" method="post" style="display:inline;">
+  <input type="hidden" name="_csrf" value="<?= sanitize_string(get_csrf_token()) ?>">
+  <button type="submit" class="btn btn-link">Sign out</button>
+</form>
+
+<form action="<?= sanitize_string(route_url('/sign-out-all')) ?>" method="post" style="display:inline;">
+  <input type="hidden" name="_csrf" value="<?= sanitize_string(get_csrf_token()) ?>">
+  <button type="submit" class="btn btn-link">Sign out all</button>
+</form>
+
+
+
+
   <h1 class="h4 mb-3">Approvals</h1>
 
   <?php if (!empty($flash_message)): ?>

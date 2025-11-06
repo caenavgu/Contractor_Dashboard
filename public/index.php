@@ -107,6 +107,83 @@ if ($uri_path === $R_SIGN_UP_SUCCESS) {
     exit;
 }
 
+/* Sign out (solo sesión actual) */
+if ($uri_path === route_url('/sign-out') && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    // CSRF
+    if (!validate_csrf_token((string)($_POST['_csrf'] ?? ''))) {
+        http_response_code(400);
+        echo '<h1>400 Bad Request</h1><p>Invalid CSRF token.</p>';
+        exit;
+    }
+
+    // Datos necesarios
+    if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+    $currentUserId = isset($_SESSION['user']['user_id']) ? (string)$_SESSION['user']['user_id'] : null;
+
+    $cookieName = 'app_session';
+    $token = $_COOKIE[$cookieName] ?? '';
+
+    // Cerrar en BD
+    if ($token !== '') {
+        $auth_service->logout($token, $currentUserId);
+    }
+
+    // Borrar cookie
+    $secure   = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    setcookie($cookieName, '', [
+        'expires'  => time() - 3600,
+        'path'     => '/',
+        'secure'   => $secure,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+
+    // Destruir sesión PHP
+    $_SESSION = [];
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_destroy();
+    }
+
+    redirect_to('/sign-in');
+    exit;
+    }
+
+    /* Sign out ALL (todas las sesiones del usuario) */
+    if ($uri_path === route_url('/sign-out-all') && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        // CSRF
+        if (!validate_csrf_token((string)($_POST['_csrf'] ?? ''))) {
+            http_response_code(400);
+            echo '<h1>400 Bad Request</h1><p>Invalid CSRF token.</p>';
+            exit;
+        }
+
+        if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+        $currentUserId = isset($_SESSION['user']['user_id']) ? (string)$_SESSION['user']['user_id'] : null;
+
+        if ($currentUserId) {
+            $auth_service->logoutAll($currentUserId);
+        }
+
+        // Borrar cookie actual por si existe
+        $cookieName = 'app_session';
+        $secure   = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+        setcookie($cookieName, '', [
+            'expires'  => time() - 3600,
+            'path'     => '/',
+            'secure'   => $secure,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+
+        $_SESSION = [];
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_destroy();
+        }
+
+        redirect_to('/sign-in');
+        exit;
+    }
+
 /* Verify email */
 $R_VERIFY = route_url('/verify-email');
 if ($uri_path === $R_VERIFY) {
