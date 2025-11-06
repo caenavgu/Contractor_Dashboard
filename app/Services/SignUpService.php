@@ -1,9 +1,4 @@
 <?php
-// app/Services/SignUpService.php
-// -------------------------------------------------------------
-// Registra un nuevo técnico/contratista en estado PENDING,
-// envía correo de verificación y registra en auditoría.
-// -------------------------------------------------------------
 declare(strict_types=1);
 
 require_once __DIR__ . '/../Repositories/UserRepository.php';
@@ -11,65 +6,55 @@ require_once __DIR__ . '/../Repositories/ContractorRepository.php';
 require_once __DIR__ . '/../Repositories/UserDetailsRepository.php';
 require_once __DIR__ . '/../Repositories/AuditLogRepository.php';
 require_once __DIR__ . '/../../includes/mailer.php';
+require_once __DIR__ . '/../../includes/helpers.php';
 
 class SignUpService
 {
-    private UserRepository $userRepo;
-    private ContractorRepository $contractorRepo;
-    private UserDetailsRepository $detailsRepo;
-    private AuditLogRepository $auditRepo;
-    private PDO $pdo;
-
     public function __construct(
-        PDO $pdo,
-        UserRepository $userRepo,
-        ContractorRepository $contractorRepo,
-        UserDetailsRepository $detailsRepo,
-        AuditLogRepository $auditRepo
-    ) {
-        $this->pdo            = $pdo;
-        $this->userRepo       = $userRepo;
-        $this->contractorRepo = $contractorRepo;
-        $this->detailsRepo    = $detailsRepo;
-        $this->auditRepo      = $auditRepo;
-    }
+        private PDO $pdo,
+        private UserRepository $userRepo,
+        private ContractorRepository $contractorRepo,
+        private UserDetailsRepository $detailsRepo,
+        private AuditLogRepository $auditRepo
+    ) {}
 
-    public function register(array $userData, array $contractorData): bool
+    /**
+     * Registra al usuario y envía email de verificación.
+     * @param array $form  Datos del formulario (usuario + contractor)
+     * @param array $files Archivos subidos (ej: EPA photo)
+     * @return array { ok: bool, redirect?: string, error?: string }
+     */
+    public function register(array $form, array $files): array
     {
-        $this->pdo->beginTransaction();
         try {
-            $email    = strtolower(trim($userData['email'] ?? ''));
-            $password = (string)($userData['password'] ?? '');
-            $confirm  = (string)($userData['confirm_password'] ?? '');
+            $email    = strtolower(trim((string)($form['email'] ?? '')));
+            $pass     = (string)($form['password'] ?? '');
+            $pass2    = (string)($form['password_confirm'] ?? '');
 
-            if ($email === '' || $password === '' || $confirm === '') {
-                throw new Exception('All fields are required.');
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return ['ok' => false, 'error' => 'Invalid email.'];
             }
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                throw new Exception('Invalid email.');
+            if ($pass === '' || strlen($pass) < 8) {
+                return ['ok' => false, 'error' => 'Password must be at least 8 characters.'];
             }
-            if ($password !== $confirm) {
-                throw new Exception('Passwords do not match.');
+            if ($pass !== $pass2) {
+                return ['ok' => false, 'error' => 'Passwords do not match.'];
             }
-
-            // ¿existe?
             if ($this->userRepo->find_by_email($email)) {
-                throw new Exception('An account with this email already exists.');
+                return ['ok' => false, 'error' => 'An account with this email already exists.'];
             }
 
-            // hash + token verificación (7 días)
-            $hash    = password_hash($password, PASSWORD_BCRYPT);
+            $this->pdo->beginTransaction();
+
+            // 1) Crear usuario
             $token   = bin2hex(random_bytes(32));
-            $expires = (new DateTime('+7 days'))->format('Y-m-d H:i:s');
+            $expires = (new DateTimeImmutable('+7 days'))->format('Y-m-d H:i:s');
 
-            $this->userRepo->set_email_verification($userId, $token, $expires);
-
-            // insertar en users
             $user = [
                 'email'                         => $email,
                 'username'                      => $email,
-                'password_hash'                 => $hash,
-                'user_type'                     => 'TEC',
+                'password_hash'                 => password_hash($pass, PASSWORD_DEFAULT),
+                'user_type'                     => (string)($form['user_type'] ?? 'TEC'),
                 'contractor_id'                 => null,
                 'status'                        => 'PENDING',
                 'email_verification_token'      => $token,
@@ -83,83 +68,120 @@ class SignUpService
             ];
             $userId = $this->userRepo->create($user);
 
-            // insertar detalles en user_details
+            // 2) Detalles del usuario (EPA, etc.)
             $details = [
                 'user_id'                 => $userId,
-                'first_name'              => strtoupper(trim($userData['first_name'] ?? '')),
-                'last_name'               => strtoupper(trim($userData['last_name'] ?? '')),
-                'phone_number'            => trim($userData['phone_number'] ?? ''),
-                'certifying_organization' => strtoupper(trim($userData['certifying_organization'] ?? '')),
-                'epa_certification_number'      => trim($userData['epa_certification_number'] ?? ''),
-                'epa_photo_url'           => $userData['epa_photo_url'] ?? null,
-                'epa_photo_filename'      => $userData['epa_photo_filename'] ?? null,
-                'epa_photo_mime'          => $userData['epa_photo_mime'] ?? null,
-                'epa_photo_size'          => $userData['epa_photo_size'] ?? null,
-                'epa_photo_checksum'      => $userData['epa_photo_checksum'] ?? null,
+                'first_name'              => strtoupper(trim((string)($form['first_name'] ?? ''))),
+                'last_name'               => strtoupper(trim((string)($form['last_name'] ?? ''))),
+                'phone_number'            => (string)($form['phone_number'] ?? ''),
+                'certifying_organization' => strtoupper(trim((string)($form['certifying_organization'] ?? ''))),
+                'epa_certification_number'=> (string)($form['epa_certification_number'] ?? ''),
+                // si subes foto EPA en $files, aquí procesas y completas estos campos:
+                'epa_photo_url'      => $form['epa_photo_url']      ?? null,
+                'epa_photo_filename' => $form['epa_photo_filename'] ?? null,
+                'epa_photo_mime'     => $form['epa_photo_mime']     ?? null,
+                'epa_photo_size'     => $form['epa_photo_size']     ?? null,
+                'epa_photo_checksum' => $form['epa_photo_checksum'] ?? null,
             ];
             $this->detailsRepo->create($details);
 
-            // contractor (opcional)
-            if (!empty($contractorData['cac_license_number'])) {
-                $existingContractor = $this->contractorRepo->find_by_cac($contractorData['cac_license_number']);
-                if ($existingContractor) {
-                    $this->userRepo->assign_contractor($userId, (int)$existingContractor['contractor_id']);
+            // 3) Contractor (si aplica)
+            $cac = strtoupper(trim((string)($form['cac_license_number'] ?? '')));
+            if ($cac !== '') {
+                $existing = $this->contractorRepo->find_by_cac($cac);
+                if ($existing) {
+                    $this->userRepo->assign_contractor($userId, (int)$existing['contractor_id']);
                 } else {
+                    // crear contractor pendiente con los datos del form
+                    $contractorData = [
+                        'cac_license_number' => $cac,
+                        'company_name'       => strtoupper(trim((string)($form['company_name'] ?? ''))),
+                        'company_phone'      => (string)($form['company_phone'] ?? ''),
+                        'company_email'      => (string)($form['company_email'] ?? ''),
+                        'company_website'    => (string)($form['company_website'] ?? ''),
+                        'address'            => strtoupper(trim((string)($form['address'] ?? ''))),
+                        'address_2'          => strtoupper(trim((string)($form['address_2'] ?? ''))),
+                        'city'               => strtoupper(trim((string)($form['city'] ?? ''))),
+                        'state_code'         => strtoupper(trim((string)($form['state_code'] ?? ''))),
+                        'zip_code'           => (string)($form['zip_code'] ?? ''),
+                        'status'             => 'PENDING',
+                    ];
                     $contractorId = $this->contractorRepo->create_pending($contractorData);
                     $this->userRepo->assign_contractor($userId, $contractorId);
                 }
             }
 
-            // log auditoría (IP como string)
-            $clientIp = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
-            $this->auditRepo->log($userId, 'user_created', $clientIp, [
-                'email'  => $email,
-                'status' => 'PENDING',
-            ]);
+            // 4) Auditoría
+            $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+            if (method_exists($this->auditRepo, 'log')) {
+                $this->auditRepo->log($userId, 'user_created', $ip, ['email' => $email, 'status' => 'PENDING']);
+            } elseif (method_exists($this->auditRepo, 'add')) {
+                $this->auditRepo->add((string)$userId, 'user', (string)$userId, 'user_created', ['email' => $email, 'status' => 'PENDING']);
+            }
 
-            // email de verificación (link funcional)
-            $verifyLink = base_url("/public/verify-email.php?token={$token}");
+            // 5) Email de verificación (con ruta correcta)
+            $verifyUrl = route_url('/verify-email') . '?t=' . urlencode($token);
             $subject = 'Verify your Everwell account';
             $body = "<p>Hello,</p>
                      <p>Please verify your email by clicking the link below:</p>
-                     <p><a href=\"{$verifyLink}\">Verify my email</a></p>
+                     <p><a href=\"{$verifyUrl}\">Verify my email</a></p>
                      <p>This link will expire in 7 days.</p>";
-
             send_mail($email, $subject, $body);
 
             $this->pdo->commit();
-            return true;
-        } catch (Throwable $e) {
-            $this->pdo->rollBack();
-            error_log("SignUpService::register() failed: " . $e->getMessage());
-            throw $e;
+            return ['ok' => true, 'redirect' => '/sign-up-success'];
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            error_log("SignUpService::register error: " . $e->getMessage());
+            return ['ok' => false, 'error' => 'Registration failed. Please try again.'];
         }
     }
 
-    public function verifyEmail(string $token): bool
+    /**
+     * Verifica el email por token (?t=...).
+     * @return array { ok: bool, message: string }
+     */
+    public function verify_email(string $token): array
     {
+        $token = trim($token);
+        if ($token === '') {
+            return ['ok' => false, 'message' => 'Missing token.'];
+        }
+
         $user = $this->userRepo->find_by_token($token);
         if (!$user) {
-            throw new Exception('Invalid verification token.');
+            return ['ok' => false, 'message' => 'Invalid verification token.'];
         }
 
-        $now = new DateTimeImmutable();
-        if (new DateTimeImmutable($user['email_verification_expires_at']) < $now) {
-            throw new Exception('Verification link has expired.');
+        try {
+            $expiresAt = (string)($user['email_verification_expires_at'] ?? '');
+            if ($expiresAt === '' || new DateTimeImmutable($expiresAt) < new DateTimeImmutable('now')) {
+                return ['ok' => false, 'message' => 'Verification link has expired.'];
+            }
+
+            $this->userRepo->mark_email_verified((int)$user['user_id']);
+
+            $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+            if (method_exists($this->auditRepo, 'log')) {
+                $this->auditRepo->log((int)$user['user_id'], 'email_verified', $ip, []);
+            } elseif (method_exists($this->auditRepo, 'add')) {
+                $this->auditRepo->add((string)$user['user_id'], 'user', (string)$user['user_id'], 'email_verified', []);
+            }
+
+            // avisa al admin
+            $adminEmail = getenv('APP_ADMIN_EMAIL') ?: 'admin@everwell-ac.com';
+            send_mail(
+                $adminEmail,
+                'New user pending approval',
+                "<p>User <strong>" . htmlspecialchars((string)$user['email']) . "</strong> has verified their email and is awaiting approval.</p>"
+            );
+
+            return ['ok' => true, 'message' => 'Email verified successfully. Your account is pending approval.'];
+        } catch (\Throwable $e) {
+            error_log("verify_email error: " . $e->getMessage());
+            return ['ok' => false, 'message' => 'Could not verify email.'];
         }
-
-        $this->userRepo->mark_email_verified($user['user_id']);
-
-        $clientIp = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
-        $this->auditRepo->log($user['user_id'], 'email_verified', $clientIp, []);
-
-        $adminEmail = getenv('APP_ADMIN_EMAIL') ?: 'admin@everwell-ac.com';
-        send_mail(
-            $adminEmail,
-            'New user pending approval',
-            "<p>User <strong>{$user['email']}</strong> has verified their email and is awaiting approval.</p>"
-        );
-
-        return true;
     }
 }

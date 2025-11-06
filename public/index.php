@@ -60,7 +60,7 @@ $approval_service = new ApprovalService(
 
 // Presenters
 $sign_in_presenter   = new SignInPresenter($auth_service);
-$sign_up_presenter   = new SignUpPresenter($pdo);  // ✅ el presenter crea el service internamente
+$sign_up_presenter   = new SignUpPresenter($sign_up_service); // inyecta el servicio correcto
 $approvals_presenter = new ApprovalsPresenter($pdo, $approval_service, $staging_repo, $contractor_repo);
 
 /* ---------- Routing ---------- */

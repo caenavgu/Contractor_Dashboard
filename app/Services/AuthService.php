@@ -1,8 +1,7 @@
 <?php
-// app/Services/auth_service.php
+// app/Services/AuthService.php
 // -------------------------------------------------------------
-// Autenticación: valida credenciales y devuelve el usuario.
-// Deja la responsabilidad de setear sesión al Presenter.
+// Autenticación y manejo de sesión persistente
 // -------------------------------------------------------------
 declare(strict_types=1);
 
@@ -26,22 +25,65 @@ class AuthService
         if (empty($user['email_verified_at'])) {
             return ['ok'=>false, 'field'=>null, 'error'=>'Please verify your email first.'];
         }
-        if (strtoupper($user['status']) !== 'ACTIVE') {
+        if (strtoupper((string)$user['status']) !== 'ACTIVE') {
             return ['ok'=>false, 'field'=>null, 'error'=>'Your account is pending approval.'];
         }
 
         try {
-            $this->audit_repo->add((string)$user['user_id'], 'user', (string)$user['user_id'], 'login_success', []);
-        } catch (\Throwable $e) { /* ignore */ }
+            if (method_exists($this->audit_repo, 'add')) {
+                $this->audit_repo->add((string)$user['user_id'], 'user', (string)$user['user_id'], 'login_success', []);
+            } elseif (method_exists($this->audit_repo, 'log')) {
+                $this->audit_repo->log((int)$user['user_id'], 'login_success', (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown'), []);
+            }
+        } catch (\Throwable $_) {}
 
         return [
             'ok'   => true,
             'user' => [
-                'user_id'   => (string)$user['user_id'],
+                'user_id'   => (string)$user['user_id'],    // ← string, NO int
                 'email'     => (string)$user['email'],
-                'user_type' => strtoupper(trim((string)$user['user_type'])), // 'ADM'|'TEC'|'SOP'|'CON'
+                'user_type' => strtoupper(trim((string)$user['user_type'])),
                 'username'  => (string)($user['username'] ?? ''),
             ],
         ];
     }
+
+    /**
+     * Crea sesión persistente + cookie.
+     * @param int  $userId
+     * @param bool $remember Si true, TTL largo (30 días); si false, 30 min
+     */
+   public function issue_session(string $userId, bool $remember = false): void
+    {
+        $ttlShort = 30 * 60;
+        $ttlLong  = 30 * 24 * 60 * 60;
+        $ttl      = $remember ? $ttlLong : $ttlShort;
+
+        $token = bin2hex(random_bytes(32));
+        $ip    = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+        $ua    = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
+
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+        $phpSid = session_id() ?: null; // CHAR(128) en BD: se guarda bien aunque sea más corto
+
+        // Inserta en BD con userId STRING
+        $this->session_repo->create($userId, $token, $ip, $ua, $ttl, $phpSid);
+
+        // Cookie
+        $cookieName = 'app_session';
+        $secure     = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+        $httpOnly   = true;
+        $sameSite   = 'Lax';
+
+        setcookie($cookieName, $token, [
+            'expires'  => time() + $ttl,
+            'path'     => '/',
+            'secure'   => $secure,
+            'httponly' => $httpOnly,
+            'samesite' => $sameSite,
+        ]);
+    }
+
 }
