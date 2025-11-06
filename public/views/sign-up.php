@@ -186,51 +186,8 @@ $signup_js   = asset_url('js/sign-up.js');
     </form>
   </div>
 </div>
-
-<script>
-  // Toggle contractor section + required fields
-  const hasContractor = document.getElementById('has_contractor');
-  const contractorSection = document.getElementById('contractor-section');
-  const requiredIfHasContractor = ['cac_license_number','company_name','address','city','state_code','zip_code'];
-
-  function toggleContractorSection(){
-    const active = hasContractor.checked;
-    contractorSection.classList.toggle('d-none', !active);
-    requiredIfHasContractor.forEach(id=>{
-      const el = document.getElementById(id);
-      if(el){
-        if(active){ el.setAttribute('required','required'); }
-        else{ el.removeAttribute('required'); }
-      }
-    });
-  }
-  hasContractor.addEventListener('change', toggleContractorSection);
-  toggleContractorSection();
-
-  // Simple front validation: confirm password must match
-  const passwordEl = document.getElementById('password');
-  const confirmEl  = document.getElementById('confirm_password');
-  function validateConfirm(){
-    if (confirmEl.value !== passwordEl.value) {
-      confirmEl.setCustomValidity('Passwords do not match');
-    } else {
-      confirmEl.setCustomValidity('');
-    }
-  }
-  passwordEl.addEventListener('input', validateConfirm);
-  confirmEl.addEventListener('input', validateConfirm);
-
-  // Bootstrap custom validation UI (opcional)
-  const form = document.getElementById('sign-up-form');
-  form.addEventListener('submit', function(e){
-    validateConfirm();
-    if (!form.checkValidity()) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    form.classList.add('was-validated');
-  });
-</script>
+<!-- JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="<?= sanitize_string($signup_js) ?>"></script>
 </body>
 </html>
