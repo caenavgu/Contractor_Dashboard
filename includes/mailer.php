@@ -48,15 +48,16 @@ function send_verification_email(string $toEmail, string $userName, string $toke
     $mailer->sendVerifyEmail($toEmail, $userName, $token);
 }
 
-function send_admin_approval_email(string $approvalsUrl): void
+/** Envía un correo de aprobación a UN admin (email + nombre). */
+function send_admin_approval_email_to(string $adminEmail, string $adminName, string $approvalsUrl): void
 {
     $mailer = mailer_instance();
-
-    $cfg       = read_config_ini();
-    $adminMail = (string)($cfg['app']['admin_email'] ?? getenv('APP_ADMIN_EMAIL') ?: 'admin@everwell-ac.com');
-    $adminName = 'Administrator';
-
-    $mailer->sendAdminApproval($adminMail, $adminName, $approvalsUrl);
+    try {
+        $mailer->sendAdminApproval($adminEmail, $adminName, $approvalsUrl);
+        app_log("admin-approval email queued to {$adminEmail}");
+    } catch (\Throwable $e) {
+        app_log('send_admin_approval_email_to error: ' . $e->getMessage());
+    }
 }
 
 function send_approved_email(string $toEmail, string $userName): void

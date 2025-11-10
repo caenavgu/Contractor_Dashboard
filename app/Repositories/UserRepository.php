@@ -10,63 +10,20 @@ class UserRepository
 {
     public function __construct(private PDO $pdo) {}
 
-    /**
-     * Crea un nuevo usuario en 'users'.
-     *
-     * $data requiere:
-     *  - email           (string)
-     *  - username        (string)
-     *  - password_hash   (string)
-     *  - user_type       (string: 'ADM','TEC','CON','SOP')
-     *  - contractor_id   (int|null)
-     *  - status          (string: 'PENDING','ACTIVE','INACTIVE','REJECTED')
-     *
-     * Devuelve el user_id generado por el trigger.
-     */
-    // public function create(array $data): string
-    // {
-    //     $sql = "INSERT INTO users (
-    //                 email,
-    //                 username,
-    //                 password_hash,
-    //                 user_type,
-    //                 contractor_id,
-    //                 status,
-    //                 created_at,
-    //                 updated_at
-    //             ) VALUES (
-    //                 :email,
-    //                 :username,
-    //                 :password_hash,
-    //                 :user_type,
-    //                 :contractor_id,
-    //                 :status,
-    //                 NOW(),
-    //                 NOW()
-    //             )";
+/**
+ * Crea un nuevo usuario en 'users'.
+ *
+ * $data requiere:
+ *  - email           (string)
+ *  - username        (string)
+ *  - password_hash   (string)
+ *  - user_type       (string: 'ADM','TEC','CON','SOP')
+ *  - contractor_id   (int|null)
+ *  - status          (string: 'PENDING','ACTIVE','INACTIVE','REJECTED')
+ *
+ * Devuelve el user_id generado por el trigger.
+ */
 
-    //     $st = $this->pdo->prepare($sql);
-    //     $st->execute([
-    //         ':email'         => $data['email'],
-    //         ':username'      => $data['username'],
-    //         ':password_hash' => $data['password_hash'],
-    //         ':user_type'     => $data['user_type'],
-    //         ':contractor_id' => $data['contractor_id'] ?? null,
-    //         ':status'        => $data['status'] ?? 'PENDING',
-    //     ]);
-
-    //     // Como el PK (user_id) lo genera un trigger y es VARCHAR,
-    //     // lastInsertId() no sirve. Tomamos el user_id recién creado por email.
-    //     $q = $this->pdo->prepare("SELECT user_id FROM users WHERE email = :e LIMIT 1");
-    //     $q->execute([':e' => $data['email']]);
-    //     $row = $q->fetch(PDO::FETCH_ASSOC);
-
-    //     if (!$row || empty($row['user_id'])) {
-    //         throw new RuntimeException('DB error: user created but user_id not retrievable.');
-    //     }
-
-    //     return (string)$row['user_id'];
-    // }
 public function create(array $data): string
     {
         $sql = "INSERT INTO users (
@@ -243,5 +200,30 @@ public function create(array $data): string
         $sql = "UPDATE users SET status = :s, updated_at = NOW() WHERE user_id = :id";
         $st = $this->pdo->prepare($sql);
         $st->execute([':s'=>$status, ':id'=>$user_id]);
+    }
+
+    /**
+     * Lista destinatarios admin (ADM/ADMIN) activos y con email verificado.
+     * Devuelve: [ ['email'=>'a@b.com','name'=>'FIRST LAST'], ... ]
+     */
+    public function list_admin_recipients(): array
+    {
+        $sql = "SELECT
+                    u.email AS email,
+                    TRIM(CONCAT(COALESCE(ud.first_name,''),' ',COALESCE(ud.last_name,''))) AS name
+                FROM users u
+                LEFT JOIN user_details ud ON ud.user_id = u.user_id
+                WHERE UPPER(u.user_type) IN ('ADM','ADMIN')
+                  AND u.status = 'ACTIVE'
+                  AND u.email_verified_at IS NOT NULL";
+        $st = $this->pdo->query($sql);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        // Si name queda vacío, usar el email como nombre visible
+        foreach ($rows as &$r) {
+            if (trim((string)$r['name']) === '') {
+                $r['name'] = (string)$r['email'];
+            }
+        }
+        return $rows;
     }
 }

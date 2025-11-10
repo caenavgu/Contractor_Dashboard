@@ -219,9 +219,18 @@ class SignUpService
                 $this->auditRepo->add((string)$user['user_id'], 'user', (string)$user['user_id'], 'email_verified', []);
             }
 
-            // Avisar al admin para aprobar
-            $approvals_url = rtrim((string)base_url('/'), '/') . route_url('/approvals');
-            send_admin_approval_email($approvals_url);
+            // ---- Notificar a TODOS los admins (ADM activos y verificados) ----
+            // $approvals_url = rtrim((string)base_url('/'), '/') . route_url('/approvals');
+            $approvals_url = absolute_route_url('/approvals');
+            $admins = $this->userRepo->list_admin_recipients(); // [['email','name'], ...]
+
+            foreach ($admins as $adm) {
+                $toEmail = (string)$adm['email'];
+                $toName  = (string)$adm['name'];
+                if ($toEmail !== '') {
+                    send_admin_approval_email_to($toEmail, $toName, $approvals_url);
+                }
+            }
 
             return ['ok'=>true,'message'=>'Email verified successfully. Your account is pending approval.'];
         } catch (\Throwable $e) {

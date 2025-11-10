@@ -42,6 +42,19 @@ function route_url(string $path): string
 }
 
 /**
+ * Devuelve URL ABSOLUTA a partir de una ruta interna.
+ * Ej.: absolute_route_url('/approvals') -> http(s)://host/contractor.everwell-ac.com/public/approvals
+ * Evita duplicar el prefijo cuando ya viene de route_url().
+ */
+function absolute_route_url(string $path): string
+{
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host   = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $route  = route_url($path); // siempre empieza con /
+    return "{$scheme}://{$host}{$route}";
+}
+
+/**
  * Redirige de forma segura a otra ruta interna.
  */
 function redirect_to(string $path): void
