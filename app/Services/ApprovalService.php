@@ -107,10 +107,17 @@ class ApprovalService
             $this->user_repo->promote_users_to_contractor_by_contractor_id($contractor_id);
 
             // Audit
-            $this->audit_repo->log('contractor_approved', (string)$contractor_id, [
-                'approved_by' => $admin_user_id,
-                'cac'         => (string)$contractor['cac_license_number'],
-            ]);
+            $this->audit_repo->log(
+                (string)$admin_user_id,
+                'contractor_approved',
+                client_ip(),
+                [
+                    'contractor_id' => (int)$contractor_id,
+                    'staging_id'    => (int)$staging_id,
+                ]
+            );
+
+
 
             $this->pdo->commit();
         } catch (Throwable $e) {
@@ -131,10 +138,16 @@ class ApprovalService
             $this->contractor_repo->reject_contractor($contractor_id, $reason, $admin_user_id);
 
             // Audit
-            $this->audit_repo->log('contractor_rejected', (string)$contractor_id, [
-                'rejected_by' => $admin_user_id,
-                'reason'      => $reason,
-            ]);
+            $this->audit_repo->log(
+                (string)$admin_user_id,
+                'contractor_rejected',
+                client_ip(),
+                [
+                    'contractor_id' => (int)$contractor_id,
+                    'staging_id'    => (int)$staging_id,
+                    'reason'        => (string)$reason,
+                ]
+            );
 
             $this->pdo->commit();
         } catch (Throwable $e) {

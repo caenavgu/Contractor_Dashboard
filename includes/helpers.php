@@ -224,4 +224,21 @@ if (!function_exists('read_config_ini')) {
 
         return $data;
     }
+
+if (!function_exists('client_ip')) {
+function client_ip(): string {
+    foreach (['HTTP_X_FORWARDED_FOR','HTTP_CLIENT_IP','REMOTE_ADDR'] as $k) {
+        if (!empty($_SERVER[$k])) {
+            $ip = (string)$_SERVER[$k];
+            // Si viene lista "a, b, c", quédate con el primero
+            if (strpos($ip, ',') !== false) {
+                $ip = trim(explode(',', $ip)[0]);
+            }
+            return $ip;
+        }
+    }
+    return 'unknown';
+}
+}
+
 }
