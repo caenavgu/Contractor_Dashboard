@@ -53,7 +53,7 @@ class ApprovalsPresenter
 
                 case 'reject_user':
                     $reason = (string)($post['reason'] ?? '');
-                    $this->approval_service->reject_user((string)$post['user_id'], $reason, $admin_user_id);
+                    $this->approval_service->reject_user((string)$post['user_id'], $admin_user_id, $reason);
                     $out = ['ok' => true, 'message' => 'User rejected'];
                     break;
 
@@ -64,7 +64,7 @@ class ApprovalsPresenter
 
                 case 'reject_contractor':
                     $reason = (string)($post['reason'] ?? '');
-                    $this->approval_service->reject_contractor((int)$post['contractor_id'], $reason, $admin_user_id);
+                    $this->approval_service->reject_contractor((int)$post['contractor_id'], $admin_user_id, $reason);
                     $out = ['ok' => true, 'message' => 'Contractor rejected'];
                     break;
 

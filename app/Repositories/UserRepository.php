@@ -121,7 +121,7 @@ public function create(array $data): string
         $st->execute([':by' => $admin_user_id, ':id' => $user_id]);
     }
 
-    public function reject_user(string $user_id, string $reason, string $admin_user_id): void
+    public function reject_user(string $user_id, string $admin_user_id, string $reason): void
     {
         $sql = "UPDATE users
                    SET status = 'REJECTED',
