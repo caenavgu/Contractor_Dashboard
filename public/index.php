@@ -110,6 +110,13 @@ if ($uri_path === $R_SIGN_UP_SUCCESS) {
     exit;
 }
 
+/* Dashboard (requiere sesión) */
+if ($uri_path === $R_DASHBOARD) {
+    $uid = require_signed_in(); // 401 si no hay sesión
+    require __DIR__ . '/views/dashboard.php';
+    exit;
+}
+
 /* Sign out (solo sesión actual) */
 if ($uri_path === route_url('/sign-out') && $_SERVER['REQUEST_METHOD'] === 'POST') {
     // CSRF

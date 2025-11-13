@@ -38,7 +38,7 @@ class SignUpService
                 return ['ok'=>false,'error'=>'Passwords do not match.'];
             }
             if ($this->userRepo->find_by_email($email)) {
-                return ['ok'=>false,'error'=>'An account with this email already exists.'];
+                return ['ok'=>false,'error'=>'An account with this email already exists.', 'field'=>'email'];
             }
 
             // EPA requeridos

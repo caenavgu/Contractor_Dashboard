@@ -13,3 +13,11 @@ input.uppercase {
     background-color: var(--brand-red);
     border-color: var(--brand-red);
 }
+
+.link-brand{
+  color: var(--brand-red);
+  text-decoration: none;
+}
+.link-brand:hover{
+  text-decoration: underline;
+}

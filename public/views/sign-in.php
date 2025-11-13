@@ -11,9 +11,13 @@ $view = isset($view) && is_array($view) ? $view : [];
 ensure_csrf_token();
 
 $csrf         = $_SESSION['csrf_token'] ?? '';
-$error_msg    = $view['error'] ?? null;
-$old_email    = $view['old']['email'] ?? '';
 $remember_me  = !empty($view['old']['remember_me']);
+// Normalizar variables por si vienen sin definir
+$error_msg     = $error_msg     ?? null;
+$invalid_field = $invalid_field ?? null;
+$old           = $old           ?? ['email' => ''];
+
+
 
 $action_url   = route_url('/sign-in');
 $sign_up_url  = route_url('/sign-up');

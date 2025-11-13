@@ -181,7 +181,7 @@ $signup_js   = asset_url('js/sign-up.js');
 
       <p class="text-center small text-muted mt-2 mb-0">
         Already have an account?
-        <a href="<?= $sign_in_url ?>">Sign in</a>
+        <a class="link-brand" href="<?= $sign_in_url ?>">Sign in</a>
       </p>
     </form>
   </div>
