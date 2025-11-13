@@ -11,6 +11,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../../includes/bootstrap.php';
+require_once __DIR__.'/../../app/Repositories/AuditLogRepository.php';
 header('Content-Type: text/plain; charset=utf-8');
 
 function line($k, $v) { echo str_pad($k.':', 28) . $v . "\n"; }
@@ -18,7 +19,7 @@ function line($k, $v) { echo str_pad($k.':', 28) . $v . "\n"; }
 echo "== Contractor App · Self Check ==\n\n";
 
 line('SCRIPT_NAME', $_SERVER['SCRIPT_NAME'] ?? '(n/a)');
-line('APP_BASE_PATH', APP_BASE_PATH);
+// line('APP_BASE_PATH', APP_BASE_PATH);
 line('route_url("/")', route_url('/'));
 line('route_url("/sign-in")', route_url('/sign-in'));
 line('route_url("/sign-up")', route_url('/sign-up'));
@@ -58,3 +59,8 @@ $target = route_url('/sign-in');
 line('normalize "/sign-in"', $target);
 
 echo "\nOK. If any value looks wrong, fix helpers or file paths.\n";
+
+$repo = new AuditLogRepository($pdo);
+$repo->log('A000000001', 'self_test', $_SERVER['REMOTE_ADDR'] ?? 'unknown', ['note'=>'manual']);
+
+echo "OK self_test audit inserted at ".date('c');

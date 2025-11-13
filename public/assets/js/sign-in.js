@@ -1,47 +1,56 @@
 // public/assets/js/sign-in.js
 // -------------------------------------------------------------
 // JS de UX para Sign In:
-// - Desactiva el botón en submit
+// - Validación básica antes del submit
+// - Desactiva botón al enviar
 // - Toggle de visibilidad de contraseña (👁️)
-// - Foco en primer error
 // -------------------------------------------------------------
-(function () {
+(() => {
   'use strict';
 
-  function onSubmitDisableButton() {
-    const form = document.getElementById('sign-in-form');
-    const btn = document.getElementById('btn-sign-in');
-    if (!form || !btn) return;
+  const form = document.getElementById('sign-in-form');
+  const btn = document.getElementById('btn-sign-in');
+  const email = document.getElementById('email');
+  const password = document.getElementById('password');
+  const toggleBtn = document.getElementById('toggle-password');
 
-    form.addEventListener('submit', function () {
-      btn.disabled = true;
-      const original = btn.textContent;
-      btn.textContent = 'Signing in...';
-      setTimeout(() => { btn.disabled = false; btn.textContent = original; }, 8000); // fallback
-    });
-  }
+  if (!form || !btn) return;
 
-  function focusFirstInvalid() {
-    const invalid = document.querySelector('.is-invalid');
-    if (invalid) invalid.focus();
-  }
+  form.addEventListener('submit', (e) => {
+    const emailVal = email ? email.value.trim() : '';
+    const passVal = password ? password.value.trim() : '';
 
-  function togglePasswordVisibility() {
-    const toggleBtn = document.getElementById('toggle-password');
-    const input = document.getElementById('password');
-    if (!toggleBtn || !input) return;
+    // Validación simple antes de enviar
+    if (!emailVal || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+      e.preventDefault();
+      e.stopPropagation();
+      email?.classList.add('is-invalid');
+      email?.focus();
+      return;
+    }
 
-    toggleBtn.addEventListener('click', function () {
-      const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
-      input.setAttribute('type', type);
-      // Cambia el aria-label por accesibilidad
+    if (!passVal) {
+      e.preventDefault();
+      e.stopPropagation();
+      password?.classList.add('is-invalid');
+      password?.focus();
+      return;
+    }
+
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = 'Signing in...';
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }, 8000); // fallback
+  });
+
+  if (toggleBtn && password) {
+    toggleBtn.addEventListener('click', () => {
+      const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+      password.setAttribute('type', type);
       toggleBtn.setAttribute('aria-label', type === 'password' ? 'Show password' : 'Hide password');
     });
   }
-
-  document.addEventListener('DOMContentLoaded', function () {
-    onSubmitDisableButton();
-    focusFirstInvalid();
-    togglePasswordVisibility();
-  });
 })();

@@ -29,18 +29,23 @@ class AuthService
             return ['ok'=>false, 'field'=>null, 'error'=>'Your account is pending approval.'];
         }
 
+        // Evento de éxito de login (antes de crear sesión)
         try {
-            if (method_exists($this->audit_repo, 'add')) {
-                $this->audit_repo->add((string)$user['user_id'], 'user', (string)$user['user_id'], 'login_success', []);
-            } elseif (method_exists($this->audit_repo, 'log')) {
-                $this->audit_repo->log((int)$user['user_id'], 'login_success', (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown'), []);
-            }
+            $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+            $this->audit_repo->log(
+                (string)$user['user_id'],
+                'login_success',
+                $ip,
+                [],
+                'user',
+                (string)$user['user_id']
+            );
         } catch (\Throwable $_) {}
 
         return [
             'ok'   => true,
             'user' => [
-                'user_id'   => (string)$user['user_id'],    // ← string, NO int
+                'user_id'   => (string)$user['user_id'],    // string tipo A000000001
                 'email'     => (string)$user['email'],
                 'user_type' => strtoupper(trim((string)$user['user_type'])),
                 'username'  => (string)($user['username'] ?? ''),
@@ -50,10 +55,10 @@ class AuthService
 
     /**
      * Crea sesión persistente + cookie.
-     * @param int  $userId
-     * @param bool $remember Si true, TTL largo (30 días); si false, 30 min
+     * @param string $userId    (varchar(16) tipo A000000001)
+     * @param bool   $remember  true = 30 días; false = 30 min
      */
-   public function issue_session(string $userId, bool $remember = false): void
+    public function issue_session(string $userId, bool $remember = false): void
     {
         $ttlShort = 30 * 60;
         $ttlLong  = 30 * 24 * 60 * 60;
@@ -70,6 +75,15 @@ class AuthService
 
         // Inserta en BD con userId STRING
         $this->session_repo->create($userId, $token, $ip, $ua, $ttl, $phpSid);
+        // Marca actividad inicial y aplica expiración deslizante
+        try {
+            $this->session_repo->markSeenByToken($token);
+        } catch (\Throwable $_) { /* no-op */ }
+
+        // Auditoría de sign_in cuando la sesión ya existe
+        try {
+            $this->audit_repo->logSignIn($userId, (string)$phpSid);
+        } catch (\Throwable $_) {}
 
         // Cookie
         $cookieName = 'app_session';
@@ -88,16 +102,13 @@ class AuthService
 
     public function logout(string $token, ?string $userId = null): void
     {
-        // Borra la sesión persistente por token
+        // Auditoría de sign_out (mantengo tu firma y comportamiento)
+        $ip  = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+        $sid = session_id() ?: null;
+
         try {
-            $this->session_repo->deleteByToken($token);
             if ($userId !== null) {
-                if (method_exists($this->audit_repo, 'add')) {
-                    $this->audit_repo->add((string)$userId, 'user', (string)$userId, 'logout', []);
-                } elseif (method_exists($this->audit_repo, 'log')) {
-                    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
-                    $this->audit_repo->log((int)$userId, 'logout', $ip, []);
-                }
+                $this->audit_repo->logSignOut($userId, $sid);
             }
         } catch (\Throwable $_) { /* no-op */ }
     }
@@ -107,13 +118,15 @@ class AuthService
         // Cierra todas las sesiones del usuario
         try {
             $this->session_repo->deleteAllForUser($userId);
-            if (method_exists($this->audit_repo, 'add')) {
-                $this->audit_repo->add((string)$userId, 'user', (string)$userId, 'logout_all', []);
-            } elseif (method_exists($this->audit_repo, 'log')) {
-                $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
-                $this->audit_repo->log((int)$userId, 'logout_all', $ip, []);
-            }
+            $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+            $this->audit_repo->log(
+                (string)$userId,
+                'logout_all',
+                $ip,
+                [],
+                'user',
+                (string)$userId
+            );
         } catch (\Throwable $_) { /* no-op */ }
     }
-
 }

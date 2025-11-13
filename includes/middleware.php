@@ -45,4 +45,15 @@ function require_admin_guard(): ?string
     return (string)($u['user_id'] ?? '');
 }
 
+function session_heartbeat(SessionRepository $repo): void
+{
+    $token = $_COOKIE['app_session'] ?? null;
+    if (!$token) return;
+
+    try {
+        $repo->markSeenByToken((string)$token);
+    } catch (\Throwable $_) { /* no-op */ }
+}
+
+
 

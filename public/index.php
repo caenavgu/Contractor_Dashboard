@@ -39,6 +39,9 @@ $contractor_repo  = new ContractorRepository($pdo);
 $staging_repo     = new ContractorStagingRepository($pdo);
 $user_details_repo = new UserDetailsRepository($pdo);   // ✅ añadido
 
+// 🔸 Marca actividad de sesión en cada request (lee la cookie app_session)
+session_heartbeat($session_repo);
+
 // Servicios
 $auth_service = new AuthService($user_repo, $session_repo, $audit_repo);
 
