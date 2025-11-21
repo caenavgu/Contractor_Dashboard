@@ -47,7 +47,7 @@ $signup_js   = asset_url('js/sign-up.js');
       <img src="<?= sanitize_string($logo_url) ?>" alt="Everwell" width="120" height="auto">
     </div>
 
-    <h1 class="h5 text-center mb-3">Create your account</h1>
+    <h1 class="h5 text-center mb-3">HVAC Technician & Contractor Registration</h1>
 
     <?php if (!empty($err_msg)): ?>
       <div class="alert alert-danger" role="alert">

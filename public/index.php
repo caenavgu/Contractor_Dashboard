@@ -20,11 +20,13 @@ require_once __DIR__ . '/../app/Repositories/ContractorRepository.php';
 require_once __DIR__ . '/../app/Repositories/ContractorStagingRepository.php';
 require_once __DIR__ . '/../app/Repositories/UserDetailsRepository.php';   // ✅ añadido
 require_once __DIR__ . '/../app/Repositories/UsaStatesRepository.php';
+require_once __DIR__ . '/../app/Repositories/WarrantyRepository.php';     // ✅ NUEVO
 
 // Servicios
 require_once __DIR__ . '/../app/Services/AuthService.php';
 require_once __DIR__ . '/../app/Services/SignUpService.php';
 require_once __DIR__ . '/../app/Services/ApprovalService.php';
+require_once __DIR__ . '/../app/Services/DashboardService.php';           // ✅ NUEVO
 
 // Presenters
 require_once __DIR__ . '/../app/Presenters/SignInPresenter.php';
@@ -38,6 +40,8 @@ $audit_repo       = new AuditLogRepository($pdo);
 $contractor_repo  = new ContractorRepository($pdo);
 $staging_repo     = new ContractorStagingRepository($pdo);
 $user_details_repo = new UserDetailsRepository($pdo);   // ✅ añadido
+$warranty_repo     = new WarrantyRepository($pdo);      // ✅ NUEVO
+require_once __DIR__ . '/../app/Presenters/DashboardPresenter.php';       // ✅ NUEVO
 
 // 🔸 Marca actividad de sesión en cada request (lee la cookie app_session)
 session_heartbeat($session_repo);
@@ -61,10 +65,13 @@ $approval_service = new ApprovalService(
     $audit_repo
 );
 
+$dashboard_service   = new DashboardService($warranty_repo);          // ✅ NUEVO
+
 // Presenters
 $sign_in_presenter   = new SignInPresenter($auth_service);
 $sign_up_presenter   = new SignUpPresenter($sign_up_service); // inyecta el servicio correcto
 $approvals_presenter = new ApprovalsPresenter($pdo, $approval_service, $staging_repo, $contractor_repo);
+$dashboard_presenter = new DashboardPresenter($dashboard_service);    // ✅ NUEVO
 
 /* ---------- Routing ---------- */
 $uri_path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
@@ -111,9 +118,15 @@ if ($uri_path === $R_SIGN_UP_SUCCESS) {
 }
 
 /* Dashboard (requiere sesión) */
+// if ($uri_path === $R_DASHBOARD) {
+//     $uid = require_signed_in(); // 401 si no hay sesión
+//     require __DIR__ . '/views/dashboard.php';
+//     exit;
+// }
+
+/* Dashboard (requiere sesión) */
 if ($uri_path === $R_DASHBOARD) {
-    $uid = require_signed_in(); // 401 si no hay sesión
-    require __DIR__ . '/views/dashboard.php';
+    $dashboard_presenter->handle_get();
     exit;
 }
 
