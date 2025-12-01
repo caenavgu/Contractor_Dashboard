@@ -10,96 +10,165 @@ declare(strict_types=1);
 /** @var bool $external_search_performed */
 
 $base_dashboard_url = route_url('/dashboard');
-$search_query = (string)($filters['search_query'] ?? '');
-$q_param = $search_query !== '' ? '&q=' . urlencode($search_query) : '';
+$search_query       = (string)($filters['search_query'] ?? '');
+$q_param            = $search_query !== '' ? '&q=' . urlencode($search_query) : '';
+
+$current_page = (int)$pagination['current_page'];
+$total_pages  = (int)$pagination['total_pages'];
+$total_w      = (int)$pagination['total'];
+
+$status_badges = [
+    'ACTIVATE' => 'success',
+    'VOID'     => 'secondary',
+    'EXPIRED'  => 'warning',
+];
+
+// Configuración para el header
+$page_title = 'My Warranties – Dashboard';
+$body_class = 'dashboard-body';
+
+require __DIR__ . '/partials/header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>User Dashboard – Warranties</title>
-    <link rel="stylesheet" href="<?= asset_url('/css/bootstrap.min.css'); ?>">
-    <link rel="stylesheet" href="<?= asset_url('/css/app.css'); ?>">
-</head>
-<body>
-<div class="container my-4">
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0">My Warranties</h1>
+<div class="container mb-5">
 
-        <!-- TODO: ajusta esta ruta a la del formulario real de registro de garantía -->
-        <a href="<?= sanitize_string(route_url('/warranty/register')); ?>" class="btn btn-primary">
-            <i class="fa fa-plus me-1"></i> Register Warranty
-        </a>
+    <!-- Header del módulo + botón principal -->
+    <div class="card ew-card ew-card-shadow mb-4">
+        <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+            <div>
+                <h1 class="h4 mb-1">My Warranties</h1>
+                <p class="text-muted mb-0 small">
+                    Review, search and manage all the warranties registered under your account.
+                </p>
+            </div>
+
+            <div class="d-flex flex-column flex-sm-row gap-2">
+                <!-- Ajusta esta ruta al formulario real de registro de garantía -->
+                <a href="<?= sanitize_string(route_url('/warranty/register')); ?>"
+                   class="btn ew-btn-primary text-white w-100">
+                    <i class="fa fa-plus me-1"></i> Register Warranty
+                </a>
+            </div>
+        </div>
     </div>
 
-    <!-- Barra de búsqueda interna -->
-    <form method="get" action="<?= sanitize_string($base_dashboard_url); ?>" class="row g-2 mb-4">
-        <div class="col-md-8">
-            <input
-                type="text"
-                name="q"
-                class="form-control"
-                placeholder="Search by serial, email, name or warranty number (E-00000042)"
-                value="<?= sanitize_string($search_query); ?>"
-            >
+    <!-- Buscador principal + resumen -->
+    <div class="card ew-card ew-card-shadow mb-4">
+        <div class="card-body">
+            <form method="get" action="<?= sanitize_string($base_dashboard_url); ?>" class="row g-2 align-items-center">
+                <div class="col-md-8">
+                    <label class="form-label mb-1 small text-uppercase text-muted">
+                        Search warranties
+                    </label>
+                    <div class="input-group">
+                        <input
+                            type="text"
+                            name="q"
+                            class="form-control"
+                            placeholder="Serial, email, owner name or warranty number (E-00000042)"
+                            value="<?= sanitize_string($search_query); ?>"
+                        >
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="fa fa-search me-1"></i> Search
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-4 mt-2 mt-md-0 d-flex flex-column align-items-md-end gap-2">
+                    <div class="small text-muted">
+                        <span class="me-3">
+                            <span class="fw-semibold"><?= $total_w; ?></span> warranties
+                        </span>
+                        <span>
+                            Page <span class="fw-semibold"><?= $current_page; ?></span>
+                            / <?= $total_pages; ?>
+                        </span>
+                    </div>
+                    <div>
+                        <a href="<?= sanitize_string($base_dashboard_url); ?>"
+                           class="btn btn-sm btn-outline-light border">
+                            Clear search
+                        </a>
+                    </div>
+                </div>
+            </form>
         </div>
-        <div class="col-md-4 d-flex">
-            <button type="submit" class="btn btn-outline-secondary me-2 w-100">
-                <i class="fa fa-search me-1"></i> Search
-            </button>
-            <a href="<?= sanitize_string($base_dashboard_url); ?>" class="btn btn-outline-light border w-100">
-                Clear
-            </a>
-        </div>
-    </form>
+    </div>
 
-    <!-- Lista de garantías del usuario -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <strong>My warranties (<?= (int)$pagination['total']; ?>)</strong>
+    <!-- Lista de garantías -->
+    <div class="card ew-card ew-card-shadow mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <span class="fw-semibold">Registered warranties</span>
+            <?php if ($search_query !== ''): ?>
+                <span class="badge bg-light text-muted rounded-pill">
+                    Filter: <?= sanitize_string($search_query); ?>
+                </span>
+            <?php endif; ?>
         </div>
 
         <div class="card-body p-0">
             <?php if (empty($warranties)): ?>
-                <p class="m-3 text-muted mb-0">No warranties found.</p>
+                <p class="m-3 text-muted mb-3">
+                    No warranties found. Try adjusting your search or register a new warranty.
+                </p>
             <?php else: ?>
                 <div class="table-responsive">
-                    <table class="table table-striped table-hover mb-0 align-middle">
-                        <thead class="table-light">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light ew-table-header">
                         <tr>
-                            <th>Warranty #</th>
-                            <th>Outdoor Serial</th>
-                            <th>Indoor Serial</th>
-                            <th>Owner</th>
-                            <th>Email</th>
-                            <th>Installation City/State</th>
-                            <th>Purchased Date</th>
-                            <th>Status</th>
-                            <th>Created At</th>
+                            <th scope="col">Warranty #</th>
+                            <th scope="col">Outdoor Serial</th>
+                            <th scope="col">Indoor Serial</th>
+                            <th scope="col">Owner</th>
+                            <th scope="col">Email</th>
+                            <th scope="col">Installation</th>
+                            <th scope="col">Purchased</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Created</th>
                         </tr>
                         </thead>
                         <tbody>
                         <?php foreach ($warranties as $w): ?>
                             <tr>
-                                <td><?= sanitize_string((string)$w['warranty_number']); ?></td>
-                                <td><?= sanitize_string((string)($w['outdoor_serial_number'] ?? '')); ?></td>
-                                <td><?= sanitize_string((string)($w['indoor_serial_number'] ?? '')); ?></td>
+                                <td class="fw-semibold">
+                                    <?= sanitize_string((string)$w['warranty_number']); ?>
+                                </td>
+                                <td>
+                                    <?= sanitize_string((string)($w['outdoor_serial_number'] ?? '')); ?>
+                                </td>
+                                <td>
+                                    <?= sanitize_string((string)($w['indoor_serial_number'] ?? '')); ?>
+                                </td>
                                 <td>
                                     <?= sanitize_string(
                                         trim((string)$w['owner_first_name'] . ' ' . (string)$w['owner_last_name'])
                                     ); ?>
                                 </td>
-                                <td><?= sanitize_string((string)($w['owner_email'] ?? '')); ?></td>
+                                <td class="text-nowrap">
+                                    <?= sanitize_string((string)($w['owner_email'] ?? '')); ?>
+                                </td>
                                 <td>
                                     <?= sanitize_string((string)($w['installation_city'] ?? '')); ?>
                                     <?php if (!empty($w['installation_state_code'])): ?>
-                                        (<?= sanitize_string((string)$w['installation_state_code']); ?>)
+                                        <span class="text-muted">
+                                            (<?= sanitize_string((string)$w['installation_state_code']); ?>)
+                                        </span>
                                     <?php endif; ?>
                                 </td>
-                                <td><?= sanitize_string((string)$w['purchased_date']); ?></td>
-                                <td><?= sanitize_string((string)$w['status']); ?></td>
-                                <td><?= sanitize_string((string)$w['created_at']); ?></td>
+                                <td class="text-nowrap">
+                                    <?= sanitize_string((string)$w['purchased_date']); ?>
+                                </td>
+                                <td>
+                                    <?php
+                                    $status = (string)$w['status'];
+                                    $badge  = $status_badges[$status] ?? 'secondary';
+                                    ?>
+                                    <span class="badge bg-<?= $badge; ?> ew-badge-pill">
+                                        <?= sanitize_string($status); ?>
+                                    </span>
+                                </td>
+                                <td class="text-nowrap">
+                                    <?= sanitize_string((string)$w['created_at']); ?>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>
@@ -109,16 +178,12 @@ $q_param = $search_query !== '' ? '&q=' . urlencode($search_query) : '';
         </div>
 
         <!-- Paginación -->
-        <?php if ((int)$pagination['total_pages'] > 1): ?>
-            <?php
-            $current_page = (int)$pagination['current_page'];
-            $total_pages  = (int)$pagination['total_pages'];
-            ?>
-            <div class="card-footer d-flex justify-content-between align-items-center">
-                <span class="text-muted">
-                    Page <?= $current_page; ?> of <?= $total_pages; ?>
+        <?php if ($total_pages > 1): ?>
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+                <span class="text-muted small">
+                    Showing page <?= $current_page; ?> of <?= $total_pages; ?>
                 </span>
-                <nav>
+                <nav aria-label="Warranties pagination">
                     <ul class="pagination mb-0">
                         <li class="page-item <?= $current_page <= 1 ? 'disabled' : ''; ?>">
                             <a class="page-link"
@@ -148,19 +213,19 @@ $q_param = $search_query !== '' ? '&q=' . urlencode($search_query) : '';
         <?php endif; ?>
     </div>
 
-    <!-- Búsqueda de garantías que NO pertenecen al usuario -->
-    <div class="card">
-        <div class="card-header">
-            <strong>Search warranty from another user</strong>
+    <!-- Búsqueda de garantías externas -->
+    <div class="card ew-card ew-card-shadow">
+        <div class="card-header bg-white">
+            <span class="fw-semibold">Search warranty from another user</span>
         </div>
         <div class="card-body">
-            <form method="get" action="<?= sanitize_string($base_dashboard_url); ?>" class="row g-2 mb-3">
+            <form method="get" action="<?= sanitize_string($base_dashboard_url); ?>" class="row g-3 mb-3">
                 <?php if ($search_query !== ''): ?>
                     <input type="hidden" name="q" value="<?= sanitize_string($search_query); ?>">
                 <?php endif; ?>
 
                 <div class="col-md-4">
-                    <label class="form-label">Serial number</label>
+                    <label class="form-label small text-uppercase text-muted">Serial number</label>
                     <input
                         type="text"
                         name="ext_serial"
@@ -171,7 +236,7 @@ $q_param = $search_query !== '' ? '&q=' . urlencode($search_query) : '';
                 </div>
 
                 <div class="col-md-4">
-                    <label class="form-label">Owner last name</label>
+                    <label class="form-label small text-uppercase text-muted">Owner last name</label>
                     <input
                         type="text"
                         name="ext_last_name"
@@ -183,7 +248,7 @@ $q_param = $search_query !== '' ? '&q=' . urlencode($search_query) : '';
 
                 <div class="col-md-4 d-flex align-items-end">
                     <button type="submit" class="btn btn-outline-secondary w-100">
-                        <i class="fa fa-search me-1"></i> Search
+                        <i class="fa fa-search me-1"></i> Search other warranty
                     </button>
                 </div>
             </form>
@@ -195,28 +260,43 @@ $q_param = $search_query !== '' ? '&q=' . urlencode($search_query) : '';
                     </p>
                 <?php else: ?>
                     <div class="alert alert-info mb-0">
-                        <strong>Warranty found:</strong><br>
-                        Warranty #:
-                        <?= sanitize_string((string)$external_warranty['warranty_number']); ?><br>
-                        Serial (outdoor):
-                        <?= sanitize_string((string)($external_warranty['outdoor_serial_number'] ?? '')); ?><br>
-                        Serial (indoor):
-                        <?= sanitize_string((string)($external_warranty['indoor_serial_number'] ?? '')); ?><br>
-                        Owner:
-                        <?= sanitize_string(
-                            trim((string)$external_warranty['owner_first_name'] . ' ' . (string)$external_warranty['owner_last_name'])
-                        ); ?><br>
-                        Email:
-                        <?= sanitize_string((string)($external_warranty['owner_email'] ?? '')); ?><br>
-                        Installation:
-                        <?= sanitize_string((string)($external_warranty['installation_city'] ?? '')); ?>
-                        <?php if (!empty($external_warranty['installation_state_code'])): ?>
-                            (<?= sanitize_string((string)$external_warranty['installation_state_code']); ?>)
-                        <?php endif; ?><br>
-                        Purchased date:
-                        <?= sanitize_string((string)$external_warranty['purchased_date']); ?><br>
-                        Status:
-                        <?= sanitize_string((string)$external_warranty['status']); ?>
+                        <div class="fw-semibold mb-1">
+                            Warranty #<?= sanitize_string((string)$external_warranty['warranty_number']); ?>
+                        </div>
+                        <div class="small">
+                            <div>
+                                Owner:
+                                <?= sanitize_string(
+                                    trim((string)$external_warranty['owner_first_name'] . ' ' . (string)$external_warranty['owner_last_name'])
+                                ); ?>
+                            </div>
+                            <div>Email: <?= sanitize_string((string)($external_warranty['owner_email'] ?? '')); ?></div>
+                            <div>
+                                Serial (outdoor):
+                                <?= sanitize_string((string)($external_warranty['outdoor_serial_number'] ?? '')); ?>
+                            </div>
+                            <div>
+                                Serial (indoor):
+                                <?= sanitize_string((string)($external_warranty['indoor_serial_number'] ?? '')); ?>
+                            </div>
+                            <div>
+                                Installation:
+                                <?= sanitize_string((string)($external_warranty['installation_city'] ?? '')); ?>
+                                <?php if (!empty($external_warranty['installation_state_code'])): ?>
+                                    (<?= sanitize_string((string)$external_warranty['installation_state_code']); ?>)
+                                <?php endif; ?>
+                            </div>
+                            <div>
+                                Purchased:
+                                <?= sanitize_string((string)$external_warranty['purchased_date']); ?>
+                            </div>
+                            <div>
+                                Status:
+                                <span class="badge bg-<?= $status_badges[(string)$external_warranty['status']] ?? 'secondary'; ?> ew-badge-pill">
+                                    <?= sanitize_string((string)$external_warranty['status']); ?>
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 <?php endif; ?>
             <?php endif; ?>
@@ -225,6 +305,4 @@ $q_param = $search_query !== '' ? '&q=' . urlencode($search_query) : '';
 
 </div>
 
-<script src="<?= asset_url('/js/bootstrap.bundle.min.js'); ?>"></script>
-</body>
-</html>
+<?php require __DIR__ . '/partials/footer.php'; ?>

@@ -1,0 +1,53 @@
+        /* Estilos base para layout Everwell */
+
+        body.dashboard-body {
+            background-color: #f5f5f5;
+        }
+
+        .ew-header-bar {
+            background-color: #f5f5f5;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .ew-logo-text {
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+
+        .ew-btn-primary {
+            background-color: #df1e26;
+            border-color: #df1e26;
+        }
+
+        .ew-btn-primary:hover,
+        .ew-btn-primary:focus {
+            background-color: #c51b21;
+            border-color: #c51b21;
+        }
+
+        .ew-badge-pill {
+            border-radius: 999px;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.6rem;
+        }
+
+        .ew-card {
+            border-radius: .75rem;
+            border: 0;
+        }
+
+        .ew-card-shadow {
+            box-shadow: 0 0.125rem 0.5rem rgba(0,0,0,0.05);
+        }
+
+        .ew-table-header {
+            font-size: .8rem;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+
+        @media (max-width: 767.98px) {
+            .ew-header-metrics {
+                text-align: left !important;
+            }
+        }
