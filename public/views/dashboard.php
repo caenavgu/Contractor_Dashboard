@@ -1,33 +1,33 @@
 <?php
-// public/views/dashboard.php
-// Dashboard de usuario: listado de garantías + búsquedas.
-declare(strict_types=1);
+    // public/views/dashboard.php
+    // Dashboard de usuario: listado de garantías + búsquedas.
+    declare(strict_types=1);
 
-/** @var array<int,array<string,mixed>> $warranties */
-/** @var array<string,mixed> $pagination */
-/** @var array<string,mixed> $filters */
-/** @var array<string,mixed>|null $external_warranty */
-/** @var bool $external_search_performed */
+    /** @var array<int,array<string,mixed>> $warranties */
+    /** @var array<string,mixed> $pagination */
+    /** @var array<string,mixed> $filters */
+    /** @var array<string,mixed>|null $external_warranty */
+    /** @var bool $external_search_performed */
 
-$base_dashboard_url = route_url('/dashboard');
-$search_query       = (string)($filters['search_query'] ?? '');
-$q_param            = $search_query !== '' ? '&q=' . urlencode($search_query) : '';
+    $base_dashboard_url = route_url('/dashboard');
+    $search_query       = (string)($filters['search_query'] ?? '');
+    $q_param            = $search_query !== '' ? '&q=' . urlencode($search_query) : '';
 
-$current_page = (int)$pagination['current_page'];
-$total_pages  = (int)$pagination['total_pages'];
-$total_w      = (int)$pagination['total'];
+    $current_page = (int)$pagination['current_page'];
+    $total_pages  = (int)$pagination['total_pages'];
+    $total_w      = (int)$pagination['total'];
 
-$status_badges = [
-    'ACTIVATE' => 'success',
-    'VOID'     => 'secondary',
-    'EXPIRED'  => 'warning',
-];
+    $status_badges = [
+        'ACTIVATE' => 'success',
+        'VOID'     => 'secondary',
+        'EXPIRED'  => 'warning',
+    ];
 
-// Configuración para el header
-$page_title = 'My Warranties – Dashboard';
-$body_class = 'dashboard-body';
+    // Configuración para el header
+    $page_title = 'My Warranties – Dashboard';
+    $body_class = 'dashboard-body';
 
-require __DIR__ . '/partials/header.php';
+    require __DIR__ . '/partials/header.php';
 ?>
 
 <div class="container mb-5">

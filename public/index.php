@@ -68,7 +68,7 @@ $approval_service = new ApprovalService(
 $dashboard_service   = new DashboardService($warranty_repo);          // ✅ NUEVO
 
 // Presenters
-$sign_in_presenter   = new SignInPresenter($auth_service);
+$sign_in_presenter   = new SignInPresenter($auth_service, $user_details_repo, $contractor_repo);
 $sign_up_presenter   = new SignUpPresenter($sign_up_service); // inyecta el servicio correcto
 $approvals_presenter = new ApprovalsPresenter($pdo, $approval_service, $staging_repo, $contractor_repo);
 $dashboard_presenter = new DashboardPresenter($dashboard_service);    // ✅ NUEVO

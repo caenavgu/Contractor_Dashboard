@@ -1,58 +1,45 @@
 <?php
-// public/views/approvals.php
-// -------------------------------------------------------------
-// UI de aprobaciones (Bootstrap 5)
-// - Secciones:
-//   1) Pending Users
-//   2) Pending Contractors
-//   3) Contractor Conflicts (Staging) -> Merge / Keep
-// -------------------------------------------------------------
-declare(strict_types=1);
+  // public/views/approvals.php
+  // -------------------------------------------------------------
+  // UI de aprobaciones (Bootstrap 5)
+  // - Secciones:
+  //   1) Pending Users
+  //   2) Pending Contractors
+  //   3) Contractor Conflicts (Staging) -> Merge / Keep
+  // -------------------------------------------------------------
+  declare(strict_types=1);
 
-// Datos esperados del presenter:
-$pending_users        = $view['pending_users']        ?? [];
-$pending_contractors  = $view['pending_contractors']  ?? [];
-$pending_staging      = $view['pending_staging']      ?? [];
+  // Datos esperados del presenter:
+  $pending_users        = $view['pending_users']        ?? [];
+  $pending_contractors  = $view['pending_contractors']  ?? [];
+  $pending_staging      = $view['pending_staging']      ?? [];
 
-// Mensajes (opcional)
-$flash_message = $view['message'] ?? null;
+  // Mensajes (opcional)
+  $flash_message = $view['message'] ?? null;
 
-ensure_csrf_token();
-$csrf = $_SESSION['csrf_token'] ?? '';
-$action_url = route_url('/approvals');
+  ensure_csrf_token();
+  $csrf = $_SESSION['csrf_token'] ?? '';
+  $action_url = route_url('/approvals');
 ?>
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Approvals · Contractor App</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <base href="<?= sanitize_string(base_url('/')) ?>">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    .section-title{ margin-top: 16px; margin-bottom: 8px; }
-    .table td, .table th { vertical-align: middle; }
-    .diff-box { background:#f8f9fa; border:1px solid #dee2e6; border-radius:8px; padding:12px; }
-  </style>
-</head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Approvals · Contractor App</title>
+ 
+    <base href="<?= sanitize_string(base_url('/')) ?>">
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="<?= asset_url('css/approvals.css') ?>">
+
+    <script src="https://kit.fontawesome.com/1d7ca8a227.js" crossorigin="anonymous"></script>
+ </head>
+
+<?php include __DIR__ . '/partials/header.php'; ?>
+
 <body class="bg-light">
 <div class="container py-4">
-
-
-
-<form action="<?= sanitize_string(route_url('/sign-out')) ?>" method="post" style="display:inline;">
-  <input type="hidden" name="_csrf" value="<?= sanitize_string(get_csrf_token()) ?>">
-  <button type="submit" class="btn btn-link">Sign out</button>
-</form>
-
-<form action="<?= sanitize_string(route_url('/sign-out-all')) ?>" method="post" style="display:inline;">
-  <input type="hidden" name="_csrf" value="<?= sanitize_string(get_csrf_token()) ?>">
-  <button type="submit" class="btn btn-link">Sign out all</button>
-</form>
-
-
-
-
   <h1 class="h4 mb-3">Approvals</h1>
 
   <?php if (!empty($flash_message)): ?>
@@ -208,7 +195,7 @@ $action_url = route_url('/approvals');
   </div>
 
 </div>
-
+<?php require __DIR__ . '/partials/footer.php'; ?>
 <script>
 function confirmReject(formEl){
   const reason = prompt('Please enter a short reason:','Data could not be verified');
