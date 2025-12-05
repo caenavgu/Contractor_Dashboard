@@ -1,3 +1,23 @@
- .section-title{ margin-top: 16px; margin-bottom: 8px; }
-    .table td, .table th { vertical-align: middle; }
-    .diff-box { background:#f8f9fa; border:1px solid #dee2e6; border-radius:8px; padding:12px; }
+   /* public/assets/css/approvals.css */
+
+.section-title {
+   margin-top: 16px; 
+   margin-bottom: 8px; 
+}
+
+.table td, 
+.table th { 
+   vertical-align: middle; 
+}
+
+.diff-box {
+   background:#f8f9fa; 
+   border:1px solid #dee2e6; 
+   border-radius:8px; 
+   padding:12px; 
+}
+
+footer {
+    flex-shrink: 0; /* el footer siempre abajo */
+}
+

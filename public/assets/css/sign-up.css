@@ -1,3 +1,5 @@
+/* public/assets/css/sign-up.css */
+
 :root{
   --brand-red: #ed1c24;
   --brand-red-hover: #212529;
@@ -20,4 +22,29 @@ input.uppercase {
 }
 .link-brand:hover{
   text-decoration: underline;
+}
+
+/* Estilo neutro: centrado, tarjeta simple, sin colores custom */
+.page-wrap {
+  min-height:100vh;
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  background:#f8f9fa
+}
+
+.auth-card {
+  width:100%;
+  max-width:920px;
+  border-radius:12px;
+  margin-top:32px
+}
+
+.section-title {
+  margin:16px 0 12px
+}
+
+.required::after {
+  content:" *";
+  color:#dc3545;
 }

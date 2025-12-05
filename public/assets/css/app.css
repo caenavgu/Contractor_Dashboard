@@ -48,7 +48,7 @@
   font-weight: 600;
   transition: background .15s ease, color .15s ease, border-color .15s ease, transform .05s ease;
 }
-.dash-item:hover,
+.dash-item:hover, 
 .dash-item:focus{
   background: var(--brand-red);
   color: #fff;

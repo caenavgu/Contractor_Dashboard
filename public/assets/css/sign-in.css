@@ -1,0 +1,40 @@
+/* public/assets/css/sign-in.css */
+
+.page-wrap {
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#f8f9fa
+}
+
+.auth-card {
+    width:100%;
+    max-width:420px;
+    border-radius:12px;
+}
+
+.brand-logo {
+    filter: saturate(1);
+}
+
+.btn-brand {
+    background:#e53935;
+    border-color:#e53935;
+    color:#fff;
+}
+
+.btn-brand:hover {
+    background:#c62828;
+    border-color:#c62828;
+    color:#fff;
+}
+
+.link-brand {
+    color:#e53935;
+    text-decoration:none;
+}
+
+.link-brand:hover {
+    text-decoration:underline
+}
