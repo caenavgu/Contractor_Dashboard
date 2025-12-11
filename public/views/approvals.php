@@ -26,6 +26,7 @@
 
   $csrf = $_SESSION['csrf_token'] ?? '';
   $action_url = route_url('/approvals');
+  $approvals_js   = asset_url('js/approvals.js');
 
   $page_title = $page_title ?? 'Approvals · Contractor App';
   $body_class = 'dashboard-body';
@@ -209,25 +210,8 @@
 
         </div>
     </div>
-    <?php require __DIR__ . '/partials/footer.php'; ?>
-    <script>
-    function confirmReject(formEl){
-      const reason = prompt('Please enter a short reason:','Data could not be verified');
-      if (reason === null) return false;
-      formEl.querySelector('input[name="reason"]').value = reason.trim();
-      return true;
-    }
-
-    function askContractorId(formEl, keepOnly=false){
-      const msg = keepOnly
-        ? 'Enter the existing contractor_id to KEEP (discard staging):'
-        : 'Enter the existing contractor_id to MERGE INTO (existing record will be updated except CAC):';
-      const id = prompt(msg,'');
-      if (!id) return false;
-      formEl.querySelector('input[name="contractor_id"]').value = id.trim();
-      return true;
-    }
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+      <?php require __DIR__ . '/partials/footer.php'; ?>
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+      <script src="<?= sanitize_string($approvals_js) ?>"></script>
     </body>
   </html>

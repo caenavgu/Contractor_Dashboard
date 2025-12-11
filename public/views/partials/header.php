@@ -32,6 +32,10 @@
                     <input type="hidden" name="_csrf" value="<?= sanitize_string(get_csrf_token()) ?>">
                     <button type="submit" class="btn btn-link">Sign out all</button>
                 </form>
+                <form action="<?= sanitize_string(route_url('/profile')) ?>" method="post" style="display:inline;">
+                    <input type="hidden" name="_csrf" value="<?= sanitize_string(get_csrf_token()) ?>">
+                    <button type="submit" class="btn btn-link">Perfil</button>
+                </form>
             </div>
         </div>
     </header>

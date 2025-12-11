@@ -50,6 +50,3 @@ declare(strict_types=1);
                 </div>
             </div>
         </div>
-        <!-- <script src="<?= asset_url('/js/bootstrap.bundle.min.js'); ?>"></script> -->
-    </body>
-</html>

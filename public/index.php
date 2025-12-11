@@ -18,20 +18,22 @@ require_once __DIR__ . '/../app/Repositories/SessionRepository.php';
 require_once __DIR__ . '/../app/Repositories/AuditLogRepository.php';
 require_once __DIR__ . '/../app/Repositories/ContractorRepository.php';
 require_once __DIR__ . '/../app/Repositories/ContractorStagingRepository.php';
-require_once __DIR__ . '/../app/Repositories/UserDetailsRepository.php';   // ✅ añadido
+require_once __DIR__ . '/../app/Repositories/UserDetailsRepository.php';
 require_once __DIR__ . '/../app/Repositories/UsaStatesRepository.php';
-require_once __DIR__ . '/../app/Repositories/WarrantyRepository.php';     // ✅ NUEVO
+require_once __DIR__ . '/../app/Repositories/WarrantyRepository.php'; // ✅ NUEVO
 
 // Servicios
 require_once __DIR__ . '/../app/Services/AuthService.php';
 require_once __DIR__ . '/../app/Services/SignUpService.php';
 require_once __DIR__ . '/../app/Services/ApprovalService.php';
-require_once __DIR__ . '/../app/Services/DashboardService.php';           // ✅ NUEVO
+require_once __DIR__ . '/../app/Services/DashboardService.php'; 
+require_once __DIR__ . '/../app/Services/ProfileService.php'; // ✅ NUEVO
 
 // Presenters
 require_once __DIR__ . '/../app/Presenters/SignInPresenter.php';
 require_once __DIR__ . '/../app/Presenters/SignUpPresenter.php';
 require_once __DIR__ . '/../app/Presenters/ApprovalsPresenter.php';
+require_once __DIR__ . '/../app/Presenters/ProfilePresenter.php'; // ✅ NUEVO
 
 /* ---------- Instancias ---------- */
 $user_repo        = new UserRepository($pdo);
@@ -39,9 +41,10 @@ $session_repo     = new SessionRepository($pdo);
 $audit_repo       = new AuditLogRepository($pdo);
 $contractor_repo  = new ContractorRepository($pdo);
 $staging_repo     = new ContractorStagingRepository($pdo);
-$user_details_repo = new UserDetailsRepository($pdo);   // ✅ añadido
-$warranty_repo     = new WarrantyRepository($pdo);      // ✅ NUEVO
-require_once __DIR__ . '/../app/Presenters/DashboardPresenter.php';       // ✅ NUEVO
+$user_details_repo = new UserDetailsRepository($pdo);
+$warranty_repo     = new WarrantyRepository($pdo);
+
+require_once __DIR__ . '/../app/Presenters/DashboardPresenter.php';
 
 // 🔸 Marca actividad de sesión en cada request (lee la cookie app_session)
 session_heartbeat($session_repo);
@@ -65,13 +68,15 @@ $approval_service = new ApprovalService(
     $audit_repo
 );
 
-$dashboard_service   = new DashboardService($warranty_repo);          // ✅ NUEVO
+$dashboard_service   = new DashboardService($warranty_repo);
+$profile_service   = new ProfileService($user_details_repo, $contractor_repo); // ✅ NUEVO
 
 // Presenters
 $sign_in_presenter   = new SignInPresenter($auth_service, $user_details_repo, $contractor_repo);
 $sign_up_presenter   = new SignUpPresenter($sign_up_service); // inyecta el servicio correcto
 $approvals_presenter = new ApprovalsPresenter($pdo, $approval_service, $staging_repo, $contractor_repo);
-$dashboard_presenter = new DashboardPresenter($dashboard_service);    // ✅ NUEVO
+$dashboard_presenter = new DashboardPresenter($dashboard_service);
+$profile_presenter = new ProfilePresenter($profile_service);    // ✅ NUEVO
 
 /* ---------- Routing ---------- */
 $uri_path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
@@ -84,6 +89,7 @@ $R_SIGN_UP_SUCCESS = route_url('/sign-up-success');
 $R_VERIFY_EMAIL    = route_url('/verify-email');
 $R_APPROVALS       = route_url('/approvals');
 $R_DASHBOARD       = route_url('/dashboard');
+$R_PROFILE         = route_url('/profile');
 
 /* Home -> redirigir a sign-in */
 if ($uri_path === $R_HOME || $uri_path === rtrim($R_HOME, '/') . '/index.php') {
@@ -117,12 +123,11 @@ if ($uri_path === $R_SIGN_UP_SUCCESS) {
     exit;
 }
 
-/* Dashboard (requiere sesión) */
-// if ($uri_path === $R_DASHBOARD) {
-//     $uid = require_signed_in(); // 401 si no hay sesión
-//     require __DIR__ . '/views/dashboard.php';
-//     exit;
-// }
+/* Profile (requiere sesión) */
+if ($uri_path === $R_PROFILE) {
+    $profile_presenter->handle_get();
+    exit;
+}
 
 /* Dashboard (requiere sesión) */
 if ($uri_path === $R_DASHBOARD) {
